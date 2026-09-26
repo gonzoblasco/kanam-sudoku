@@ -1,0 +1,149 @@
+/* U4 - Estilos del tablero.
+ *
+ * Sin frameworks. Contraste AA, foco visible, y ningun estado que dependa solo
+ * del color: dadas, seleccion y conflicto tambien cambian peso, borde o forma.
+ * Respeta prefers-reduced-motion.
+ */
+
+:root {
+  --color-bg: #f4f1ea;
+  --color-surface: #ffffff;
+  --color-text: #1c1a17;
+  --color-given: #1c1a17;
+  --color-player: #1c4e8a;
+  --color-line: #b9b2a5;
+  --color-line-strong: #4a443b;
+  --color-selected: #fde68a;
+  --color-conflict-bg: #ffe0e0;
+  --color-conflict-line: #b3261e;
+  --color-focus: #1c4e8a;
+  --cell-size: clamp(2rem, 9vw, 3.5rem);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  padding: 1.5rem;
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+}
+
+h1 {
+  font-size: 1.4rem;
+  margin: 0;
+}
+
+.board {
+  display: grid;
+  grid-template-rows: repeat(9, auto);
+  background: var(--color-line-strong);
+  border: 3px solid var(--color-line-strong);
+  width: fit-content;
+}
+
+.board-row {
+  display: grid;
+  grid-template-columns: repeat(9, var(--cell-size));
+}
+
+.cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: var(--cell-size);
+  background: var(--color-surface);
+  border-right: 1px solid var(--color-line);
+  border-bottom: 1px solid var(--color-line);
+  font-size: calc(var(--cell-size) * 0.55);
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  user-select: none;
+  /* Solo la transicion del fondo; se apaga con reduced-motion. */
+  transition: background-color 120ms ease;
+}
+
+.cell:nth-child(9n) {
+  border-right: none;
+}
+
+.board-row:last-child .cell {
+  border-bottom: none;
+}
+
+/* Bordes gruesos cada 3 celdas: la separacion de cajas no depende del color. */
+.cell.box-right {
+  border-right: 2px solid var(--color-line-strong);
+}
+
+.cell.box-bottom {
+  border-bottom: 2px solid var(--color-line-strong);
+}
+
+/* Celda dada: mas peso y color distinto, no solo color. */
+.cell[data-state="dada"] {
+  font-weight: 700;
+  color: var(--color-given);
+}
+
+/* Celda del jugador: tono distinto y trazo mas fino. */
+.cell[data-state="cargada"] {
+  font-weight: 400;
+  color: var(--color-player);
+}
+
+.cell[data-state="vacia"] {
+  color: var(--color-text);
+}
+
+/* Seleccion: fondo + contorno, visible sin depender del color. */
+.cell[aria-selected="true"] {
+  background: var(--color-selected);
+  outline: 3px solid var(--color-focus);
+  outline-offset: -3px;
+  z-index: 1;
+}
+
+/* Foco de teclado: siempre visible. */
+.cell:focus-visible {
+  outline: 3px solid var(--color-focus);
+  outline-offset: -3px;
+  z-index: 2;
+}
+
+/* Conflicto: fondo + borde punteado + atributo aria-invalid en el DOM. */
+.cell[aria-invalid="true"] {
+  background: var(--color-conflict-bg);
+  box-shadow: inset 0 0 0 2px var(--color-conflict-line);
+  text-decoration: underline wavy var(--color-conflict-line);
+}
+
+.status,
+.help {
+  max-width: 32rem;
+  text-align: center;
+  margin: 0;
+}
+
+.help {
+  font-size: 0.9rem;
+  color: #4a443b;
+}
+
+.status {
+  min-height: 1.4rem;
+  font-weight: 600;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cell {
+    transition: none;
+  }
+}
