@@ -5,8 +5,9 @@
 ## Fase actual
 
 Definition en curso (2026-09-26). U1 (motor puro), U2 (generador + primitivas +
-rater base), U3a (tier 2 + motor de explicaciones) y U4 (UI jugable) entregadas y
-testeadas.
+rater base), U3a (tier 2 + motor de explicaciones), U4 (UI jugable) y U5+U6
+(notas, undo/redo, timer, estadisticas, persistencia y eleccion de dificultad)
+entregadas y testeadas.
 
 ## Que funciona
 
@@ -67,16 +68,50 @@ testeadas.
     conflicto por borde interior + subrayado ondulado + `aria-invalid`). Respeta
     `prefers-reduced-motion`.
   - `index.html` + `main.js`: entrada de Vite que monta el juego en `#app`.
+- **U5 - Notas y undo/redo** (`src/ui/`):
+  - `notes.js`: mascara de 9 bits de candidatos por celda (misma convencion que
+    `analysis.js`). `autoNotes` usa el motor de candidatos real, no recalcula la
+    logica.
+  - `history.js`: pila de snapshots con puntero. Deshacer/rehacer restauran
+    valores y notas exactos. Tope `LIMIT = 1000` entradas; al pasarse se descarta
+    la mas vieja. Una mutacion nueva descarta la rama de rehacer.
+  - `state.js`: `GameState` ahora tiene notas e historial. Decide: las notas de
+    una celda **se conservan** bajo un valor cargado y quedan ocultas; al borrar
+    el valor, vuelven. Alternativa descartada: borrarlas al cargar, que hacia
+    vacia la regla FR-3 ("borrar un numero no rompe las notas"). El puzzle
+    persistido guarda **solo las dadas**, para que al restaurar no se confunda un
+    valor del jugador con una dada.
+  - `a11y.js`: el `aria-label` de una celda vacia incluye
+    "anotaciones: 2, 5 y 7"; no se anuncia en celdas con valor.
+- **U6 - Timer, estadisticas, persistencia y dificultad** (`src/ui/`):
+  - `timer.js`: tiempo de juego, no de pared. Pausar congela lo acumulado, asi
+    el tiempo en pausa no suma; detenerse al resolver es definitivo. Reloj
+    inyectado (`now`), asi los tests no esperan. Serializa el tiempo **efectivo**,
+    no el tramo interno.
+  - `persistence.js`: todo payload lleva `schemaVersion` + migracion (hoy 0 -> 1)
+    y rechazo de version futura. `localStorage` corrupto o ausente no lanza:
+    arranca limpio y lo reporta (`recovered`). Estadisticas: mejor tiempo por
+    nivel, jugadas, ganadas y racha, con `recordWin` como **unico** mutador.
+  - `session.js`: une partida, cronometro, estadisticas y almacenamiento;
+    restaura la partida en curso al reabrir; expone partida nueva, reiniciar,
+    pausa, undo/redo y abandonar. Almacenamiento y generador inyectados.
+  - `render.js`: `N` alterna modo nota (1-9 marca candidatos), botones de
+    auto-anotar y borrar anotaciones, Deshacer/Rehacer (y Ctrl+Z / Ctrl+Shift+Z)
+    con `aria-disabled` cuando no hay nada que hacer, Pausar/Continuar, Partida
+    nueva y Reiniciar. Selector de dificultad (facil/medio/dificil) que genera
+    con `generatePuzzle`. Las notas se dibujan como mini-rejilla 3x3 en la celda.
 - **Firma comun:** `solve` y `countSolutions` aceptan `Board | number[]` y no
   mutan la entrada (fix del 2026-09-26 sobre una inconsistencia de firma:
   `countSolutions` solo tomaba `number[]`).
-- Tests: 145 pasando con `node --test` (`board`, `validator`, `solver`, `random`,
-  `analysis`, `techniques`, `rater`, `generator`, `navigation`, `state`, `a11y`).
-  Incluye unicidad real (40 puzzles generados, cada uno verificado con el
-  solver), determinismo por semilla, un puzzle por tier (facil/medio/dificil)
-  resuelto por el rater, un test por tecnica nueva de tier 2 con fixture generado
-  y verificado, tests del `text` que comprueban que nombra la unidad y los digitos
-  correctos, y tests de la logica de UI (movimiento, conflictos, etiquetas).
+- Tests: 219 pasando con `node --test` (`board`, `validator`, `solver`, `random`,
+  `analysis`, `techniques`, `rater`, `generator`, `navigation`, `state`, `a11y`,
+  `notes`, `history`, `timer`, `persistence`, `session`). Incluye unicidad real
+  (40 puzzles generados, cada uno verificado con el solver), determinismo por
+  semilla, un puzzle por tier resuelto por el rater, un test por tecnica de tier
+  2, tests del `text` del hint, tests de logica de UI, la ida y vuelta de undo
+  (20 mutaciones mixtas -> estado inicial exacto), la pausa que no acumula, la
+  migracion de esquema viejo, el `localStorage` corrupto y las stats que no se
+  ensucian al abandonar.
 - Cero dependencias de runtime. `vite` **7.3.6** como devDependency (verificado:
   `npm install` y `npm run build` corren de verdad). El DOM no se testea (no se
   sumo jsdom): la logica de UI se extrajo a funciones puras.
@@ -90,11 +125,9 @@ testeadas.
 1. U3b: familia tier 3 (unique rectangle, simple colors, X-Chain, Skyscraper,
    2-String Kite, W-Wing, Jellyfish, XY-Chain) y su `text`. Mismo patron que
    U3a: detector + `verifyDeduction` + explicacion parametrizada.
-2. U5: notas + undo/redo.
-3. U6: timer, estadisticas, persistencia e historial.
-4. U7: hints en UI cableados al motor de tecnicas, y seleccion de dificultad en
-   UI (hoy la UI arranca de un puzzle de ejemplo fijo en `render.js`).
-5. U8: PWA offline + deploy.
+2. U7: hints en UI cableados al motor de tecnicas (mostrar el `text` del hint
+   sobre el tablero y señalar la unidad).
+3. U8: PWA offline + deploy.
 
 ## Decisiones abiertas
 
@@ -134,6 +167,17 @@ testeadas.
 - `GameState` guarda una **copia** del `Board` que recibe, asi cargar celdas no
   muta el tablero de origen del llamador (mismo criterio que `solve`).
 - Puertos: `npm run dev` levanta en `http://localhost:5173/` (default de Vite).
-- La UI de U4 arranca de un puzzle de ejemplo fijo (`SAMPLE_PUZZLE` en
-  `render.js`). Elegir dificultad y generar en cliente es U7, cuando el hint ya
-  tenga donde mostrarse.
+- Decision de notas: una celda con valor conserva sus notas guardadas pero la UI
+  no las muestra ni las anuncia. Borrar el valor las trae de vuelta. Es lo unico
+  que hace cierta la regla FR-3 de "borrar no rompe las notas".
+- Tope del historial: `LIMIT = 1000` entradas. Una partida larga no lo alcanza;
+  al pasarse se descarta la entrada mas vieja, nunca el estado actual.
+- Esquema de persistencia: `schemaVersion = 1`. Claves `kanam.sudoku.game` y
+  `kanam.sudoku.stats`. La migracion 0 -> 1 acepta payloads sin version (formato
+  viejo con `board`/`elapsed`). Una version futura se rechaza sin crashear.
+- Al reabrir una partida guardada, el cronometro se retoma **pausado**: el tiempo
+  con la app cerrada no cuenta y el jugador decide cuando seguir.
+- Las estadisticas solo las toca `recordWin`. Abandonar una partida solo borra lo
+  guardado; no registra jugada.
+- La UI ya no arranca de un puzzle fijo: el selector de dificultad genera con
+  `generatePuzzle`. La semilla es aleatoria en runtime y fija en los tests.
