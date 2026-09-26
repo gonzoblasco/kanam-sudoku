@@ -5,7 +5,8 @@
 ## Fase actual
 
 Definition en curso (2026-09-26). U1 (motor puro), U2 (generador + primitivas +
-rater base) y U3a (tier 2 + motor de explicaciones) entregadas y testeadas.
+rater base), U3a (tier 2 + motor de explicaciones) y U4 (UI jugable) entregadas y
+testeadas.
 
 ## Que funciona
 
@@ -47,16 +48,38 @@ rater base) y U3a (tier 2 + motor de explicaciones) entregadas y testeadas.
     `countSolutions(puzzle, 2) === 1` despues de cada quita. `generatePuzzle`
     intenta semillas derivadas hasta que el tier medido coincide con el nivel
     pedido; si no, devuelve `matched: false` sin mentir sobre el nivel.
+- **U4 - UI del tablero** (`src/ui/`, `index.html`):
+  - `navigation.js`: movimiento por flechas como logica pura (`move`, `moveByKey`,
+    `ARROW_KEYS`). Da la vuelta en los bordes sin salir de la fila/columna.
+  - `state.js`: `GameState` envuelve un `Board` (copia propia, no comparte estado
+    con el tablero de origen). `stateOf` responde dada / cargada / vacia;
+    `conflictingCells` usa `conflictCells` del core, asi marca **todas** las
+    celdas que chocan, no solo la ultima cargada; `isWon` detecta la victoria.
+    Una celda dada nunca se pisa: lo garantiza `Board.set`.
+  - `a11y.js`: arma el `aria-label` de cada celda con fila, columna, caja, valor y
+    estado, para que un lector de pantalla entienda el tablero sin verlo. El
+    conflicto y la seleccion se anuncian en texto (NFR-4).
+  - `render.js`: `role=grid` / `role=row` / `role=gridcell`, un `aria-label` por
+    celda, input completo (flechas, 1-9, Suprimir/Retroceso, click), region de
+    estado con `aria-live`, seleccion visible y aviso de victoria.
+  - `styles.css`: contraste, foco visible, bordes gruesos cada 3 celdas, y ningun
+    estado que dependa solo del color (dadas por peso, seleccion por contorno,
+    conflicto por borde interior + subrayado ondulado + `aria-invalid`). Respeta
+    `prefers-reduced-motion`.
+  - `index.html` + `main.js`: entrada de Vite que monta el juego en `#app`.
 - **Firma comun:** `solve` y `countSolutions` aceptan `Board | number[]` y no
   mutan la entrada (fix del 2026-09-26 sobre una inconsistencia de firma:
   `countSolutions` solo tomaba `number[]`).
-- Tests: 116 pasando con `node --test` (`board`, `validator`, `solver`, `random`,
-  `analysis`, `techniques`, `rater`, `generator`). Incluye unicidad real (40
-  puzzles generados, cada uno verificado con el solver), determinismo por
-  semilla, un puzzle por tier (facil/medio/dificil) resuelto por el rater, un test
-  por tecnica nueva de tier 2 con fixture generado y verificado, y tests del
-  `text` que comprueban que nombra la unidad y los digitos correctos.
-- Cero dependencias de runtime. `vite` como devDependency (para U4).
+- Tests: 145 pasando con `node --test` (`board`, `validator`, `solver`, `random`,
+  `analysis`, `techniques`, `rater`, `generator`, `navigation`, `state`, `a11y`).
+  Incluye unicidad real (40 puzzles generados, cada uno verificado con el
+  solver), determinismo por semilla, un puzzle por tier (facil/medio/dificil)
+  resuelto por el rater, un test por tecnica nueva de tier 2 con fixture generado
+  y verificado, tests del `text` que comprueban que nombra la unidad y los digitos
+  correctos, y tests de la logica de UI (movimiento, conflictos, etiquetas).
+- Cero dependencias de runtime. `vite` **7.3.6** como devDependency (verificado:
+  `npm install` y `npm run build` corren de verdad). El DOM no se testea (no se
+  sumo jsdom): la logica de UI se extrajo a funciones puras.
 
 ## Que esta bloqueado
 
@@ -67,18 +90,19 @@ rater base) y U3a (tier 2 + motor de explicaciones) entregadas y testeadas.
 1. U3b: familia tier 3 (unique rectangle, simple colors, X-Chain, Skyscraper,
    2-String Kite, W-Wing, Jellyfish, XY-Chain) y su `text`. Mismo patron que
    U3a: detector + `verifyDeduction` + explicacion parametrizada.
-2. U4: UI del tablero: render, input, teclado, a11y.
-3. U5: notas + undo/redo.
-4. U6: timer, estadisticas, persistencia e historial.
-5. U7: hints en UI cableados al motor de tecnicas.
-6. U8: PWA offline + deploy.
+2. U5: notas + undo/redo.
+3. U6: timer, estadisticas, persistencia e historial.
+4. U7: hints en UI cableados al motor de tecnicas, y seleccion de dificultad en
+   UI (hoy la UI arranca de un puzzle de ejemplo fijo en `render.js`).
+5. U8: PWA offline + deploy.
 
 ## Decisiones abiertas
 
 - Visibilidad del repo (publico/privado).
 - Target de deploy (GitHub Pages u otro).
-- Version de `vite` en `devDependencies`: quedo como `^7.0.0` (a confirmar al
-  instalar para U4).
+- **Version de `vite`: resuelto (U4).** Quedo en `^7.3.6`, la version que se
+  instalo y con la que `npm install` y `npm run build` se verificaron. El rango
+  viejo `^7.0.0` nunca se habia probado.
 - **Tier de `hidden_triple`: resuelto (U3a).** Va a tier 2, por la tabla de
   niveles del research 4.2 y la regla de SPEC 7bis: el tier lo fija la tabla, no
   el ER. El ER (4.0) se mantiene y solo ordena la evaluacion dentro del catalogo.
@@ -104,3 +128,12 @@ rater base) y U3a (tier 2 + motor de explicaciones) entregadas y testeadas.
 - Los fixtures de tier 2 se generaron localmente con el generador (semillas
   50017, 50266, 50047, 50065, 51063) y se filtraron con el rater hasta que la
   tecnica aparece en la resolucion. No se bajo ningun puzzle de internet.
+- La UI separa logica pura de DOM: `navigation.js`, `state.js` y `a11y.js` no
+  tocan el DOM y se testean con `node --test`; `render.js` solo cablea. El DOM no
+  se testea (no se sumo jsdom, por la restriccion de cero dependencias nuevas).
+- `GameState` guarda una **copia** del `Board` que recibe, asi cargar celdas no
+  muta el tablero de origen del llamador (mismo criterio que `solve`).
+- Puertos: `npm run dev` levanta en `http://localhost:5173/` (default de Vite).
+- La UI de U4 arranca de un puzzle de ejemplo fijo (`SAMPLE_PUZZLE` en
+  `render.js`). Elegir dificultad y generar en cliente es U7, cuando el hint ya
+  tenga donde mostrarse.
