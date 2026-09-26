@@ -1,0 +1,19 @@
+{
+  "name": "kanam-sudoku",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Sudoku web offline-first con motor de puzzles propio, hints que explican la tecnica y accesibilidad de fabrica",
+  "license": "MIT",
+  "scripts": {
+    "test": "node --test test/",
+    "dev": "vite",
+    "build": "vite build"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "devDependencies": {
+    "vite": "^7.0.0"
+  }
+}
