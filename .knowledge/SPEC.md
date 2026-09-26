@@ -120,6 +120,29 @@ deteccion estan en `RESEARCH-TECNICAS.md` (secciones 6 y la escalera de la 4).
 El conteo de huecos no mide dificultad y no es explicable por el motor de hints.
 Base y desacuerdo documentados en `RESEARCH-TECNICAS.md` seccion 4.3.
 
+### Escalera autoritativa (decidida 2026-09-26)
+
+El corte es por **ER de la tecnica mas dificil usada**, siguiendo el research 4.2.
+La tabla del research manda sobre cualquier lista de tecnicas suelta:
+
+| Tier | Nivel | Corta en | Tecnicas |
+|---|---|---|---|
+| 0 | Facil | ER <= 2.3 | full house / last digit, hidden single, naked single |
+| 1 | Medio | ER <= 3.6 | + locked candidates (pointing, claiming), naked pair, hidden pair, naked triple |
+| 2 | Dificil | ER <= 4.4 | + **hidden triple**, naked quad, X-Wing, Swordfish, XY-Wing, XYZ-Wing |
+| 3 | Experto | ER <= 7.0 | + unique rectangle, simple colors, X-Chain, Skyscraper, 2-String Kite, W-Wing, Jellyfish, XY-Chain |
+
+**Caso que origino la tabla:** `hidden_triple` tiene ER 4.0, que queda **por encima
+del corte de Medio (3.6)**. Pertenece al tier 2 (Dificil), no al 1, aunque se
+parezca a su hermano `naked_triple` (ER 3.6, si tier 1). La simetria del nombre no
+manda; manda el ER. Lo detecto Kanam DEV al implementar U2, en vez de forzar el
+nivel para que cuadrara.
+
+U2 alcanza tier 0-1. Un puzzle que necesita una tecnica de tier 2+ **no se
+resuelve** con el rater base: devuelve `solved: false`, `difficulty: null` y el
+tier maximo alcanzado. Eso es correcto, no un fallo: significa "este puzzle es mas
+dificil que medio".
+
 ## 8. Riesgos
 
 - **Dificultad real es dificil.** Contar huecos no mide dificultad; medir por
