@@ -1,11 +1,13 @@
-// U4 - Etiquetas accesibles del tablero (logica pura, testeable).
+// U4/U5 - Etiquetas accesibles del tablero (logica pura, testeable).
 //
 // El aria-label de cada celda tiene que alcanzar para entender el tablero sin
 // verlo: fila, columna, caja, valor y estado (dada / cargada / vacia / en
-// conflicto). Se arma aca, separado del DOM, para poder probarlo.
+// conflicto), mas las anotaciones si las hay. Se arma aca, separado del DOM,
+// para poder probarlo.
 
 import { rowOf, colOf, boxOf } from "../core/board.js";
 import { CELL_STATE } from "./state.js";
+import { notesText, noteDigits } from "./notes.js";
 
 /** "fila 3, columna 5, caja 2" (1-based, como cuenta el jugador). */
 export function positionLabel(index) {
@@ -34,6 +36,12 @@ export function cellAriaLabel(game, index) {
     parts.push("vacia");
   } else {
     parts.push(`${STATE_LABEL[state]}: ${value}`);
+  }
+
+  // Las notas se dicen en texto: un lector de pantalla tiene que poder usarlas.
+  if (state !== CELL_STATE.GIVEN && state !== CELL_STATE.PLAYER) {
+    const digits = noteDigits(game.notes, index);
+    if (digits.length > 0) parts.push(`anotaciones: ${notesText(game.notes, index)}`);
   }
 
   // El conflicto se dice en texto, no solo con color (NFR-4).
