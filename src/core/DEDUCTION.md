@@ -27,8 +27,11 @@ Implementacion: `src/core/techniques.js`. Primitivas: `src/core/analysis.js`.
     byDigit: [                        // casillas candidatas por digito, o null
       { digit: 1, cells: [42, 43] },
     ],
+    // Campos extra de algunas familias, o null:
+    fish: { base: [...], cover: [...], digit: 6 }, // x_wing / swordfish
+    wing: { pivot: {...}, pincers: [...], z: 3 },  // xy_wing / xyz_wing
   },
-  text: "...",                  // explicacion llana: la agrega U3, no U2
+  text: "...",                  // explicacion llana: la agrega U3
 }
 ```
 
@@ -53,9 +56,10 @@ Implementacion: `src/core/techniques.js`. Primitivas: `src/core/analysis.js`.
 
 La **pertenencia a un tier la define la tabla de niveles del research (seccion
 4.2)**, no una aritmetica de ER (SPEC 7bis). El ER **ordena** la evaluacion
-ascendente dentro del catalogo y sirve de diagnostico, pero nunca decide el
-nivel: los ER se solapan entre tiers a proposito (X-Wing tiene ER 3.2 y es
-Dificil; hidden triple 4.0 y naked triple 3.6).
+ascendente dentro del catalogo (`TECHNIQUES.sort` por `er`) y sirve de
+diagnostico, pero nunca decide el nivel: los ER se solapan entre tiers a
+proposito (X-Wing tiene ER 3.2 y es Dificil; hidden triple 4.0 y naked triple
+3.6).
 
 | Tier | Nivel | Tecnicas |
 |---|---|---|
@@ -64,20 +68,23 @@ Dificil; hidden triple 4.0 y naked triple 3.6).
 | 2 | Dificil | + hidden triple, naked quad, X-Wing, Swordfish, XY-Wing, XYZ-Wing |
 | 3 | Experto | + unique rectangle, simple colors, X-Chain, Skyscraper, 2-String Kite, W-Wing, Jellyfish, XY-Chain |
 
-## Ids del catalogo (tier 0 y 1)
+## Ids del catalogo (tier 0 a 2)
 
-| id | tier | ER | action |
-|---|---|---|---|
-| `full_house` | 0 | 1.0 | place |
-| `hidden_single` | 0 | 1.2 (caja) / 1.5 (linea) | place |
-| `naked_single` | 0 | 2.3 | place |
-| `locked_candidates_pointing` | 1 | 2.6 | eliminate |
-| `locked_candidates_claiming` | 1 | 2.8 | eliminate |
-| `naked_pair` | 1 | 3.0 | eliminate |
-| `hidden_pair` | 1 | 3.4 | eliminate |
-| `naked_triple` | 1 | 3.6 | eliminate |
-| `hidden_triple` | 2 | 4.0 | eliminate |
+| id | tier | ER | action | fuente del ER |
+|---|---|---|---|---|
+| `full_house` | 0 | 1.0 | place | research 2.1 |
+| `hidden_single` | 0 | 1.2 (caja) / 1.5 (linea) | place | research 2.2 |
+| `naked_single` | 0 | 2.3 | place | research 2.3 |
+| `locked_candidates_pointing` | 1 | 2.6 | eliminate | research 3.1 |
+| `locked_candidates_claiming` | 1 | 2.8 | eliminate | research 3.2 |
+| `naked_pair` | 1 | 3.0 | eliminate | research 3.3 |
+| `hidden_pair` | 1 | 3.4 | eliminate | research 3.4 |
+| `naked_triple` | 1 | 3.6 | eliminate | research 3.5 |
+| `hidden_triple` | 2 | 4.0 | eliminate | research 3.6 |
+| `naked_quad` | 2 | 5.0 | eliminate | research 3.7 |
+| `x_wing` | 2 | 3.2 | eliminate | research 3.9 |
+| `swordfish` | 2 | 3.8 | eliminate | research 3.10 |
+| `xy_wing` | 2 | 4.2 | eliminate | research 3.12 |
+| `xyz_wing` | 2 | 4.4 | eliminate | research 3.13 |
 
-U3 extiende el catalogo (`TECHNIQUES`) con las familias dificiles (fish, wings,
-chains, unicidad) y agrega el `text`. El orden de evaluacion es el orden del
-catalogo, ascendente por ER (research 6.4).
+U3b extiende el catalogo con la familia de tier 3 (chains, unicidad, colors,

@@ -11,7 +11,9 @@ import {
   verifyDeduction,
 } from "../src/core/techniques.js";
 
-// Fixtures verificados como puzzles de solucion unica donde la tecnica aparece.
+// Fixtures generados localmente con el generador (semilla) y verificados con el
+// rater: cada uno es de solucion unica y la tecnica aparece de verdad.
+// tier 0-1
 const FIXTURES = {
   full_house: "700000000400050089050800700005030006300200004070008020080009040900600003000007000",
   hidden_single: "700000000400050089050800700005030006300200004070008020080009040900600003000007000",
@@ -24,6 +26,13 @@ const FIXTURES = {
   hidden_pair: "500000000000007000094500006003908405000031020820040000000000008270000500080009010",
   naked_triple: "470000000825060000006000702003004001000800059500000000000043800000000070000126005",
   hidden_triple: "000659001000008070000400305204560000000000014600900000081000059000000040370000000",
+  // tier 2 (generados con semilla 50017/50266/50047/50065/51063 y filtrados
+  // por el rater hasta que la tecnica aparece en la resolucion)
+  naked_quad: "004090003000600509009280001407000090805000006000100000006000900900005700081960320",
+  x_wing: "205800000080750000000000030000062008600980200020000170000008000710500000098006700",
+  swordfish: "009840700050000008000030002200060005005000060980400300600300801000000000810007093",
+  xy_wing: "000870019000009080000006200090050704000002000040098000430000006600080050008004093",
+  xyz_wing: "003010009050000420100400080700008500002005064000034000010300000009600000000000042",
 };
 
 function valuesOf(text) {
@@ -31,7 +40,7 @@ function valuesOf(text) {
 }
 
 test("catalogo: ids en ingles, tiers 0-2, ordenado por ER", () => {
-  assert.ok(TECHNIQUES.length >= 9);
+  assert.ok(TECHNIQUES.length >= 14);
   let prevEr = -Infinity;
   for (const technique of TECHNIQUES) {
     assert.match(technique.id, /^[a-z_]+$/, `id no canonico: ${technique.id}`);
@@ -39,14 +48,6 @@ test("catalogo: ids en ingles, tiers 0-2, ordenado por ER", () => {
     assert.ok(technique.er >= prevEr, `orden de ER roto en ${technique.id}`);
     prevEr = technique.er;
   }
-});
-
-test("catalogo: hidden_triple va a tier 2 (la tabla de niveles, no el ER)", () => {
-  const byId = Object.fromEntries(TECHNIQUES.map((t) => [t.id, t]));
-  assert.equal(byId.hidden_triple.tier, 2);
-  assert.equal(byId.hidden_triple.er, 4.0, "el ER no cambia: 4.0");
-  // naked_triple sigue en tier 1 (3.6): la simetria del nombre no manda
-  assert.equal(byId.naked_triple.tier, 1);
 });
 
 test("catalogo: cada id tiene etiqueta en español", () => {
@@ -60,7 +61,7 @@ test("cada detector dispara en su fixture, con targets no vacios", () => {
     const state = analyze(valuesOf(puzzle));
     let applied = 0;
     let guard = 0;
-    while (!state.isSolved() && guard++ < 300) {
+    while (!state.isSolved() && guard++ < 400) {
       const deduction = findDeduction(state, { maxTier: 2 });
       if (!deduction) break;
       const check = verifyDeduction(state, deduction);
@@ -153,6 +154,72 @@ test("locked candidates pointing: elimina fuera de la caja, dentro de la linea",
         assert.ok(!d.evidence.cells.includes(target.cell));
       }
       assert.ok(d.evidence.byDigit && d.evidence.byDigit.length >= 1);
+      break;
+    }
+    state.applyDeduction(d);
+  }
+});
+
+// --- tier 2 ----------------------------------------------------------------
+
+// Un test por tecnica nueva: en su fixture la tecnica se detecta, la deduccion
+// es legal (verifyDeduction) y el texto nombra unidad/digitos reales.
+test("tier 2: cada detector dispara en su fixture con deduccion legal", () => {
+  const tier2 = ["naked_quad", "x_wing", "swordfish", "xy_wing", "xyz_wing"];
+  for (const id of tier2) {
+    const state = analyze(valuesOf(FIXTURES[id]));
+    let found = null;
+    let guard = 0;
+    while (!state.isSolved() && guard++ < 400) {
+      const d = findDeduction(state, { maxTier: 2 });
+      if (!d) break;
+      assert.ok(verifyDeduction(state, d).ok, `${id}: paso sin justificacion (${d.technique})`);
+      if (d.technique === id) {
+        found = d;
+        break;
+      }
+      state.applyDeduction(d);
+    }
+    assert.ok(found, `${id}: no se detecto en su fixture`);
+    assert.equal(found.tier, 2, `${id}: tier distinto de 2`);
+    assert.ok(found.targets.length > 0, `${id}: sin targets`);
+    assert.equal(found.action, "eliminate", `${id}: deberia eliminar`);
+  }
+});
+
+test("tier 2: los ER son los del research (3.2 a 5.0)", () => {
+  const byId = Object.fromEntries(TECHNIQUES.map((t) => [t.id, t]));
+  assert.equal(byId.x_wing.er, 3.2); // research 3.9
+  assert.equal(byId.swordfish.er, 3.8); // research 3.10
+  assert.equal(byId.xy_wing.er, 4.2); // research 3.12
+  assert.equal(byId.xyz_wing.er, 4.4); // research 3.13
+  assert.equal(byId.naked_quad.er, 5.0); // research 3.7
+  assert.equal(byId.hidden_triple.tier, 2, "hidden_triple es tier 2 por la tabla de niveles");
+  for (const t of [byId.x_wing, byId.swordfish, byId.xy_wing, byId.xyz_wing, byId.naked_quad]) {
+    assert.equal(t.tier, 2, `${t.id}: tier distinto de 2`);
+  }
+});
+
+test("x_wing: elimina en las lineas cruzadas, fuera de las definidoras", () => {
+  const state = analyze(valuesOf(FIXTURES.x_wing));
+  let guard = 0;
+  while (guard++ < 400) {
+    const d = findDeduction(state, { maxTier: 2 });
+    if (!d) break;
+    if (d.technique === "x_wing") {
+      const base = new Set(d.evidence.fish.base.map((u) => u.index));
+      const baseType = d.evidence.fish.base[0].type;
+      const coverType = d.evidence.fish.cover[0].type;
+      assert.notEqual(baseType, coverType);
+      for (const target of d.targets) {
+        const u = d.evidence.fish.cover.find((c) =>
+          (coverType === "col" && (target.cell % 9) === c.index) ||
+          (coverType === "row" && Math.floor(target.cell / 9) === c.index));
+        assert.ok(u, "el target no esta en una linea cruzada");
+        // y no esta en una linea definidora
+        if (baseType === "row") assert.ok(!base.has(Math.floor(target.cell / 9)));
+        else assert.ok(!base.has(target.cell % 9));
+      }
       break;
     }
     state.applyDeduction(d);

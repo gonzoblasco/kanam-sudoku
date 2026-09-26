@@ -118,6 +118,21 @@ test("generatePuzzle: cuando no matchea, no miente sobre el nivel", () => {
   assert.equal(result.maxTier >= 0, true);
 });
 
+test("generatePuzzle: dificil se resuelve con tier 2", () => {
+  const result = generatePuzzle({ seed: 70001, difficulty: DIFFICULTY.HARD, maxAttempts: 40 });
+  assert.equal(result.matched, true);
+  assert.equal(result.measured, DIFFICULTY.HARD);
+  assert.equal(result.maxTier, 2);
+  assert.equal(result.solved, true);
+  assert.equal(countSolutions(valuesOf(result.puzzle), 2), 1);
+});
+
+test("generatePuzzle: un dificil no se resuelve con el rater de U2 (tier <= 1)", () => {
+  const result = generatePuzzle({ seed: 70001, difficulty: DIFFICULTY.HARD, maxAttempts: 40 });
+  assert.equal(ratePuzzle(valuesOf(result.puzzle), { maxTier: 1 }).solved, false);
+  assert.equal(ratePuzzle(valuesOf(result.puzzle), { maxTier: 2 }).difficulty, DIFFICULTY.HARD);
+});
+
 test("generatePuzzle: los pasos reportados son reales", () => {
   const result = generatePuzzle({ seed: 4242, difficulty: DIFFICULTY.MEDIUM });
   const rating = ratePuzzle(valuesOf(result.puzzle), { maxTier: 1 });

@@ -14,7 +14,7 @@ import { SIZE, DIM, EMPTY, rowOf, colOf, boxOf } from "./board.js";
 import { popcount } from "./analysis.js";
 import { countSolutions } from "./solver.js";
 import { createRng, shuffle, deriveSeed } from "./random.js";
-import { ratePuzzle, DIFFICULTY } from "./rater.js";
+import { ratePuzzle, DIFFICULTY, DIFFICULTY_MAX_TIER } from "./rater.js";
 
 /**
  * Metas de huecos por nivel. No se asume que mas huecos = mas dificil: la
@@ -23,11 +23,13 @@ import { ratePuzzle, DIFFICULTY } from "./rater.js";
  *
  * Calibrado empiricamente (2026-09-26): con 40 huecos el generador llega a tier
  * 0 casi siempre; para que el rater vea tier 1 hace falta subir la meta a ~57.
- * Ver `.knowledge/STATUS.md`.
+ * Dificil (tier 2) necesita mas huecos todavia. Ver `.knowledge/STATUS.md`.
  */
 export const HOLE_TARGETS = Object.freeze({
   [DIFFICULTY.EASY]: 40,
   [DIFFICULTY.MEDIUM]: 57,
+  [DIFFICULTY.HARD]: 58,
+  [DIFFICULTY.EXPERT]: 58,
 });
 
 // Mascara de digitos ya usados en la fila, columna o caja de una casilla.
@@ -146,6 +148,9 @@ export function generatePuzzle(options = {}) {
     targetHoles = HOLE_TARGETS[difficulty] ?? HOLE_TARGETS[DIFFICULTY.EASY],
     maxAttempts = 60,
   } = options;
+  // Medir con la parte de la escalera del nivel pedido: un puzzle "dificil" se
+  // mide con maxTier 2, no con el rater de U2.
+  const maxTier = DIFFICULTY_MAX_TIER[difficulty] ?? 1;
 
   let fallback = null;
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
@@ -153,7 +158,7 @@ export function generatePuzzle(options = {}) {
     const rng = createRng(attemptSeed);
     const solution = generateSolvedGrid(attemptSeed);
     const { puzzle, holes } = carve(solution, targetHoles, rng);
-    const rating = ratePuzzle(puzzle, { maxTier: 1 });
+    const rating = ratePuzzle(puzzle, { maxTier });
 
     const result = {
       puzzle: puzzle.join(""),

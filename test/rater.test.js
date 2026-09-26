@@ -3,7 +3,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { DIFFICULTY, difficultyOfTier, isEasy, ratePuzzle } from "../src/core/rater.js";
+import { DIFFICULTY, difficultyOfTier, isEasy, isHard, ratePuzzle } from "../src/core/rater.js";
 import { countSolutions } from "../src/core/solver.js";
 import { isSolved } from "../src/core/validator.js";
 
@@ -15,7 +15,9 @@ function valuesOf(text) {
 const EASY = "600912000050368091900000006000520130540090072200047500790001200060280007120479653";
 // Puzzle de solucion unica que requiere tier 1 (locked candidates + pair).
 const MEDIUM = "000009040060007008109000007281004050500000010000800004050000900008601000400030700";
-// Puzzle unico que el rater base NO puede resolver (requiere tier 2+).
+// Puzzle unico que requiere tier 2: no se resuelve con tier <= 1, si con tier 2.
+const HARD = "003010009050000420100400080700008500002005064000034000010300000009600000000000042";
+// Puzzle unico que necesita tier 3 (todavia sin tecnicas implementadas).
 const BEYOND = "005300000800000020070010500400005300010070006003200080060500009004000030000009700";
 
 test("ratePuzzle: puzzle facil resuelto, tier 0, dificultad facil", () => {
@@ -36,12 +38,15 @@ test("ratePuzzle: puzzle medio resuelto, tier 1, dificultad medio", () => {
   assert.ok(result.steps.some((step) => step.tier === 1));
 });
 
-test("ratePuzzle: no inventa tier cuando no puede resolver", () => {
-  const result = ratePuzzle(valuesOf(BEYOND), { maxTier: 1 });
-  assert.equal(result.solved, false);
-  assert.equal(result.difficulty, null);
-  assert.equal(result.unsolvedTier, result.maxTier);
-  assert.ok(result.maxTier <= 1, "el rater base no debe pasar de tier 1");
+test("ratePuzzle: puzzle dificil resuelto, tier 2, dificultad dificil", () => {
+  // Antes de U3a este puzzle no se resolvia (necesita una tecnica de tier 2).
+  const result = ratePuzzle(valuesOf(HARD), { maxTier: 2 });
+  assert.equal(result.solved, true);
+  assert.equal(result.maxTier, 2);
+  assert.equal(result.difficulty, DIFFICULTY.HARD);
+  assert.ok(result.steps.some((step) => step.tier === 2));
+  // y NO se resuelve con el rater de U2 (tier <= 1): es un puzzle de nivel nuevo
+  assert.equal(ratePuzzle(valuesOf(HARD), { maxTier: 1 }).solved, false);
 });
 
 test("ratePuzzle: la escalera reconoce los 4 niveles de la spec", () => {
@@ -50,7 +55,16 @@ test("ratePuzzle: la escalera reconoce los 4 niveles de la spec", () => {
   assert.equal(difficultyOfTier(2), DIFFICULTY.HARD);
   assert.equal(difficultyOfTier(3), DIFFICULTY.EXPERT);
   assert.equal(difficultyOfTier(4), null, "un tier fuera de la escalera no tiene nivel");
+  // y no se resuelve un nivel que no existe
   assert.equal(Object.values(DIFFICULTY).length, 4);
+});
+
+test("ratePuzzle: un puzzle de tier 3 queda honestamente sin resolver", () => {
+  // U3a implementa hasta tier 2. BEYOND necesita tier 3: el rater no lo inventa.
+  const result = ratePuzzle(valuesOf(BEYOND), { maxTier: 3 });
+  assert.equal(result.solved, false);
+  assert.equal(result.difficulty, null);
+  assert.ok(result.maxTier <= 2, "no debe pasar de las tecnicas implementadas");
 });
 
 test("ratePuzzle: los pasos son reales (el rater reconstruye un tablero valido)", () => {
@@ -93,8 +107,15 @@ test("isEasy: verdadero solo para puzzles de singles", () => {
   assert.equal(isEasy(valuesOf(MEDIUM)), false);
 });
 
+test("isHard: verdadero hasta tier 2, falso para tier 3", () => {
+  assert.equal(isHard(valuesOf(MEDIUM)), true);
+  assert.equal(isHard(valuesOf(HARD)), true);
+  assert.equal(isHard(valuesOf(BEYOND)), false);
+});
+
 test("los fixtures del rater son de solucion unica", () => {
   assert.equal(countSolutions(valuesOf(EASY), 2), 1);
   assert.equal(countSolutions(valuesOf(MEDIUM), 2), 1);
+  assert.equal(countSolutions(valuesOf(HARD), 2), 1);
   assert.equal(countSolutions(valuesOf(BEYOND), 2), 1);
 });

@@ -39,6 +39,17 @@ export function difficultyOfTier(tier) {
 }
 
 /**
+ * Tier maximo de cada nivel de juego. Lo usa el generador para medir un puzzle
+ * del nivel pedido con la parte de la escalera que le corresponde.
+ */
+export const DIFFICULTY_MAX_TIER = Object.freeze({
+  [DIFFICULTY.EASY]: 0,
+  [DIFFICULTY.MEDIUM]: 1,
+  [DIFFICULTY.HARD]: 2,
+  [DIFFICULTY.EXPERT]: 3,
+});
+
+/**
  * Resultado de `ratePuzzle`.
  *
  * @typedef {Object} RateResult
@@ -121,4 +132,11 @@ function maxTierUsed(steps) {
  */
 export function isEasy(board, options = {}) {
   return ratePuzzle(board, { ...options, maxTier: 0 }).solved;
+}
+
+/**
+ * true si el puzzle se resuelve con tecnicas de tier <= 2 (hasta Dificil).
+ */
+export function isHard(board, options = {}) {
+  return ratePuzzle(board, { ...options, maxTier: 2 }).solved;
 }

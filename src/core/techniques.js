@@ -1,4 +1,4 @@
-// U2 - Detectores de tecnicas tier 0 y tier 1.
+// U2 - Detectores de tecnicas tier 0, 1 y 2.
 //
 // CONTRATO DE DEDUCCION (API interna compartida; ver tambien `DEDUCTION.md`)
 // -------------------------------------------------------------------------
@@ -6,7 +6,7 @@
 //
 //   {
 //     technique: "hidden_single",  // id canonico en INGLES, estable
-//     tier: 0,                     // 0 = facil, 1 = medio (escalera de U2)
+//     tier: 0,                     // 0 facil, 1 medio, 2 dificil (escalera U2/U3)
 //     er: 1.5,                     // rating de referencia (Sudoku Explainer)
 //     action: "place" | "eliminate",
 //     targets: [                   // lo unico que muta el tablero
@@ -21,8 +21,8 @@
 //       byDigit: [                 // casillas candidatas por digito
 //         { digit: 1, cells: [42, 43] },
 //       ] | null,
+//       // extra por familia: fish, wing
 //     },
-//     text: "..."                  // explicacion llana: la agrega U3, no U2
 //   }
 //
 // Reglas del contrato:
@@ -31,10 +31,15 @@
 //   resaltado no puede depender solo del color (NFR-4).
 // - El id `technique` va en ingles (la nomenclatura en español NO es canonica,
 //   research seccion 8.1). El nombre en español vive en `TECHNIQUE_LABELS`.
+// - `text` lo agrega U3 (explicacion llana); U2 lo deja ausente.
 // - Una deduccion solo vale si sus `targets` estan justificados por el estado
 //   del tablero; `verifyDeduction` lo comprueba antes de aplicarla.
+// - El tier lo fija la tabla de niveles del research 4.2, NO el ER (SPEC 7bis).
+//   El ER solo ordena la evaluacion dentro del catalogo.
+// - El tier lo fija la tabla de niveles del research 4.2, NO el ER (SPEC 7bis).
+//   El ER solo ordena la evaluacion dentro del catalogo.
 
-import { DIM, UNIT_TYPE, UNITS, bit, popcount, maskDigits } from "./analysis.js";
+import { DIM, UNIT_TYPE, UNITS, PEERS, bit, popcount, maskDigits } from "./analysis.js";
 
 /** Etiquetas de UI en español, no canonicas (solo para mostrar). */
 export const TECHNIQUE_LABELS = Object.freeze({
@@ -47,6 +52,11 @@ export const TECHNIQUE_LABELS = Object.freeze({
   hidden_pair: "par oculto",
   naked_triple: "triple desnudo",
   hidden_triple: "triple oculto",
+  naked_quad: "cuadruple desnudo",
+  x_wing: "ala X (X-Wing)",
+  swordfish: "pez espada (Swordfish)",
+  xy_wing: "ala XY (XY-Wing)",
+  xyz_wing: "ala XYZ (XYZ-Wing)",
 });
 
 const ROWS = UNITS.filter((u) => u.type === UNIT_TYPE.ROW);
@@ -145,12 +155,34 @@ function makeDeduction(technique, tier, er, action, targets, evidence) {
   return { technique, tier, er, action, targets, evidence };
 }
 
+// Casillas candidatas de un digito en una linea (fila o columna).
+function lineDigitCells(state, line, digit) {
+  return cellsOfMask(state.unitDigitCells(line, digit));
+}
+
+// Los peers comunes a una lista de casillas. Los usan las wings.
+function commonPeers(cells) {
+  let common = null;
+  for (const cell of cells) {
+    const set = new Set(PEERS[cell]);
+    if (common === null) common = set;
+    else common = new Set([...common].filter((c) => set.has(c)));
+  }
+  return common ? [...common].sort((a, b) => a - b) : [];
+}
+
+// true si `a` y `b` se ven (comparten fila, columna o caja). `PEERS` no incluye
+// la propia casilla, asi que a === b da false.
+function sees(a, b) {
+  return PEERS[a].includes(b);
+}
+
 // Detector: devuelve una deduccion o null. Nunca muta el estado.
 function defineTechnique(id, tier, er, action, detect) {
   TECHNIQUES.push(Object.freeze({ id, tier, er, action, detect }));
 }
 
-/** Catalogo de tecnicas (tier 0 y 1) ordenado por ER ascendente. */
+/** Catalogo de tecnicas (tier 0 a 2) ordenado por ER ascendente. */
 export const TECHNIQUES = [];
 
 // ---------------------------------------------------------------------------
@@ -375,6 +407,208 @@ defineTechnique("hidden_triple", 2, 4.0, "eliminate", (state) => {
   }
   return null;
 });
+
+// ---------------------------------------------------------------------------
+// Tier 2 - Cuadruples desnudos, fish y wings (research 3.7, 3.9, 3.10, 3.12, 3.13)
+// ---------------------------------------------------------------------------
+
+// Naked Quad: cuatro casillas de una unidad cuya union de candidatos tiene
+// tamano 4. Elimina esos cuatro digitos del resto de la unidad. ER 5.0; tier 2.
+defineTechnique("naked_quad", 2, 5.0, "eliminate", (state) => {
+  for (const unit of UNITS) {
+    const free = unit.cells.filter((cell) => state.values[cell] === 0 && state.cellCount[cell] >= 2);
+    for (const quad of combinations(free, 4)) {
+      const mask = quad.reduce((acc, cell) => acc | state.candidates[cell], 0);
+      if (popcount(mask) !== 4) continue;
+      const targets = eliminateOthersInUnit(state, unit, quad, mask);
+      if (targets.length === 0) continue;
+      const digits = maskDigits(mask);
+      return makeDeduction("naked_quad", 2, 5.0, "eliminate", targets, {
+        unit: unitRef(unit),
+        cells: quad,
+        digit: null,
+        digits,
+        byDigit: digits.map((d) => ({ digit: d, cells: quad })),
+      });
+    }
+  }
+  return null;
+});
+
+// Busca un fish basico de tamano `size`: `size` lineas definidoras (filas o
+// columnas, en una sola orientacion) donde el digito tiene entre 2 y `size`
+// casillas candidatas, y cuyas lineas cruzadas suman exactamente `size`. No
+// elimina nada: devuelve la estructura para que el detector arme la deduccion.
+function findFish(state, size) {
+  const orientations = [
+    { lines: ROWS, cross: COLS, crossIndex: colIndex },
+    { lines: COLS, cross: ROWS, crossIndex: rowIndex },
+  ];
+  for (let d = 1; d <= DIM; d++) {
+    for (const { lines, cross, crossIndex } of orientations) {
+      const lineCells = lines.map((line) => lineDigitCells(state, line, d));
+      for (const idx of combinations([...Array(9).keys()], size)) {
+        if (idx.some((i) => lineCells[i].length < 2 || lineCells[i].length > size)) continue;
+        const crossSet = new Set();
+        for (const i of idx) for (const cell of lineCells[i]) crossSet.add(crossIndex(cell));
+        if (crossSet.size !== size) continue;
+        const coverIdx = [...crossSet].sort((a, b) => a - b);
+        return {
+          digit: d,
+          base: idx.map((i) => lines[i]),
+          cover: coverIdx.map((c) => cross[c]),
+          baseCells: idx.flatMap((i) => lineCells[i]),
+        };
+      }
+    }
+  }
+  return null;
+}
+
+function fishDeduction(id, tier, er, found) {
+  const state = found.state;
+  const targets = [];
+  for (const line of found.cover) {
+    targets.push(...eliminateOthersInUnit(state, line, found.baseCells, bit(found.digit)));
+  }
+  if (targets.length === 0) return null;
+  return makeDeduction(id, tier, er, "eliminate", targets, {
+    unit: null,
+    cells: found.baseCells.slice().sort((a, b) => a - b),
+    digit: found.digit,
+    digits: null,
+    byDigit: [{ digit: found.digit, cells: found.baseCells }],
+    fish: {
+      base: found.base.map(unitRef),
+      cover: found.cover.map(unitRef),
+      digit: found.digit,
+    },
+  });
+}
+
+// X-Wing: un digito aparece exactamente dos veces en cada una de dos lineas, y
+// las cuatro casillas caen en las mismas dos lineas cruzadas. Elimina el digito
+// del resto de esas dos lineas cruzadas, fuera de las definidoras. ER 3.2; tier 2
+// (la tabla de niveles del research lo pone en Dificil, no en Medio).
+defineTechnique("x_wing", 2, 3.2, "eliminate", (state) => {
+  const found = findFish(state, 2);
+  if (!found) return null;
+  return fishDeduction("x_wing", 2, 3.2, { ...found, state });
+});
+
+// Swordfish: un digito aparece en 2 o 3 casillas de cada una de tres lineas, y
+// todas caen en las mismas tres lineas cruzadas. Elimina el digito del resto de
+// esas tres lineas cruzadas, fuera de las definidoras. ER 3.8; tier 2.
+defineTechnique("swordfish", 2, 3.8, "eliminate", (state) => {
+  const found = findFish(state, 3);
+  if (!found) return null;
+  return fishDeduction("swordfish", 2, 3.8, { ...found, state });
+});
+
+// XY-Wing: un pivote bivaluado XY y dos puntas XZ e YZ que ven al pivote. Elimina
+// Z de las casillas que ven a las DOS puntas. ER 4.2; tier 2.
+defineTechnique("xy_wing", 2, 4.2, "eliminate", (state) => {
+  const bivalued = [];
+  for (let cell = 0; cell < state.values.length; cell++) {
+    if (state.values[cell] === 0 && state.cellCount[cell] === 2) bivalued.push(cell);
+  }
+
+  for (const pivot of bivalued) {
+    const [x, y] = maskDigits(state.candidates[pivot]);
+    for (const pincerA of bivalued) {
+      if (pincerA === pivot || !sees(pivot, pincerA)) continue;
+      const aCands = maskDigits(state.candidates[pincerA]);
+      if (!aCands.includes(x) || aCands.includes(y)) continue; // debe ser XZ
+      const z = aCands.find((v) => v !== x);
+      if (z === undefined || z === y) continue;
+      for (const pincerB of bivalued) {
+        if (pincerB === pivot || pincerB === pincerA || !sees(pivot, pincerB)) continue;
+        const bCands = maskDigits(state.candidates[pincerB]);
+        if (!bCands.includes(y) || bCands.includes(x)) continue; // debe ser YZ
+        if (!bCands.includes(z)) continue;
+        const targets = [];
+        for (const cell of commonPeers([pincerA, pincerB])) {
+          if (state.values[cell] !== 0) continue;
+          if (state.candidates[cell] & bit(z)) targets.push({ cell, kind: "eliminate", digit: z });
+        }
+        if (targets.length === 0) continue;
+        return makeDeduction("xy_wing", 2, 4.2, "eliminate", targets, {
+          unit: null,
+          cells: [pivot, pincerA, pincerB],
+          digit: z,
+          digits: null,
+          byDigit: [{ digit: z, cells: [pivot, pincerA, pincerB] }],
+          wing: {
+            pivot: { cell: pivot, candidates: [x, y] },
+            pincers: [
+              { cell: pincerA, candidates: [x, z] },
+              { cell: pincerB, candidates: [y, z] },
+            ],
+            z,
+          },
+        });
+      }
+    }
+  }
+  return null;
+});
+
+// XYZ-Wing: como el XY-Wing pero el pivote tiene tres candidatos XYZ. Elimina Z
+// de las casillas que ven al pivote y a las dos puntas. ER 4.4; tier 2.
+defineTechnique("xyz_wing", 2, 4.4, "eliminate", (state) => {
+  const bivalued = [];
+  const trivalued = [];
+  for (let cell = 0; cell < state.values.length; cell++) {
+    if (state.values[cell] !== 0) continue;
+    if (state.cellCount[cell] === 2) bivalued.push(cell);
+    else if (state.cellCount[cell] === 3) trivalued.push(cell);
+  }
+
+  for (const pivot of trivalued) {
+    const pivotCands = maskDigits(state.candidates[pivot]);
+    for (const z of pivotCands) {
+      const others = pivotCands.filter((v) => v !== z); // {x, y}
+      for (const pincerA of bivalued) {
+        if (!sees(pivot, pincerA)) continue;
+        const aCands = maskDigits(state.candidates[pincerA]);
+        if (!aCands.includes(others[0]) || !aCands.includes(z)) continue;
+        for (const pincerB of bivalued) {
+          if (pincerB === pincerA || !sees(pivot, pincerB)) continue;
+          const bCands = maskDigits(state.candidates[pincerB]);
+          if (!bCands.includes(others[1]) || !bCands.includes(z)) continue;
+          const targets = [];
+          for (const cell of commonPeers([pivot, pincerA, pincerB])) {
+            if (state.values[cell] !== 0) continue;
+            if (state.candidates[cell] & bit(z)) targets.push({ cell, kind: "eliminate", digit: z });
+          }
+          if (targets.length === 0) continue;
+          return makeDeduction("xyz_wing", 2, 4.4, "eliminate", targets, {
+            unit: null,
+            cells: [pivot, pincerA, pincerB],
+            digit: z,
+            digits: null,
+            byDigit: [{ digit: z, cells: [pivot, pincerA, pincerB] }],
+            wing: {
+              pivot: { cell: pivot, candidates: pivotCands.slice() },
+              pincers: [
+                { cell: pincerA, candidates: aCands.slice() },
+                { cell: pincerB, candidates: bCands.slice() },
+              ],
+              z,
+            },
+          });
+        }
+      }
+    }
+  }
+  return null;
+});
+
+// El orden de evaluacion es ascendente por ER (research 6.4): el motor prueba
+// primero la tecnica mas simple aplicable. La pertenencia a un tier la define la
+// tabla de niveles del research 4.2, no el ER; por eso el catalogo se ordena por
+// ER pero el tier es un dato aparte de cada tecnica.
+TECHNIQUES.sort((a, b) => a.er - b.er);
 
 /**
  * Comprueba que una deduccion este justificada por el estado actual del tablero.
