@@ -1,0 +1,65 @@
+# U8 - Deploy a GitHub Pages (preparado, NO habilitado).
+#
+# Este workflow construye el sitio y lo publica en GitHub Pages. Queda listo pero
+# sin ejecutarse hasta que se habilite Pages, que es una accion que aprueba Gonzo.
+#
+# Para activarlo hace falta, en el repo de GitHub:
+#   Settings -> Pages -> Build and deployment -> Source: "GitHub Actions".
+# Recien despues de eso el workflow publica.
+
+name: Deploy to GitHub Pages
+
+on:
+  # Manual: no publica por su cuenta hasta que alguien lo dispare.
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install
+        run: npm ci
+
+      - name: Test
+        run: npm test
+
+      - name: Build
+        run: npm run build
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
