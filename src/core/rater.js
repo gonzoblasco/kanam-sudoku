@@ -12,11 +12,31 @@
 import { analyze } from "./analysis.js";
 import { findDeduction, verifyDeduction } from "./techniques.js";
 
-/** Etiquetas de dificultad que cubre el rater base. */
+/** Etiquetas de dificultad de la escalera (SPEC 7bis). */
 export const DIFFICULTY = Object.freeze({
   EASY: "facil",
   MEDIUM: "medio",
+  HARD: "dificil",
+  EXPERT: "experto",
 });
+
+/**
+ * Nivel de juego segun el tier de la tecnica mas dificil usada (SPEC 7bis).
+ * La pertenencia a un tier la fija la tabla de niveles del research 4.2, no el
+ * ER; aca solo se traduce tier -> nivel.
+ */
+const TIER_TO_DIFFICULTY = Object.freeze({
+  [-1]: DIFFICULTY.EASY, // no hizo falta ninguna tecnica (tablero ya resuelto)
+  0: DIFFICULTY.EASY,
+  1: DIFFICULTY.MEDIUM,
+  2: DIFFICULTY.HARD,
+  3: DIFFICULTY.EXPERT,
+});
+
+/** Nivel de juego de un tier, o null si el tier no existe todavia. */
+export function difficultyOfTier(tier) {
+  return TIER_TO_DIFFICULTY[tier] ?? null;
+}
 
 /**
  * Resultado de `ratePuzzle`.
@@ -69,7 +89,7 @@ export function ratePuzzle(board, options = {}) {
   const solved = state.isSolved();
   const hardest = maxTierUsed(steps);
   return {
-    difficulty: solved ? (hardest <= 0 ? DIFFICULTY.EASY : DIFFICULTY.MEDIUM) : null,
+    difficulty: solved ? difficultyOfTier(hardest) : null,
     maxTier: hardest,
     steps,
     solved,

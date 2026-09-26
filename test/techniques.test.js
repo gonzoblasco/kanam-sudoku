@@ -30,15 +30,23 @@ function valuesOf(text) {
   return text.split("").map(Number);
 }
 
-test("catalogo: ids en ingles, tiers 0 y 1, ordenado por ER", () => {
+test("catalogo: ids en ingles, tiers 0-2, ordenado por ER", () => {
   assert.ok(TECHNIQUES.length >= 9);
   let prevEr = -Infinity;
   for (const technique of TECHNIQUES) {
     assert.match(technique.id, /^[a-z_]+$/, `id no canonico: ${technique.id}`);
-    assert.ok([0, 1].includes(technique.tier), `tier fuera de 0-1: ${technique.id}`);
+    assert.ok([0, 1, 2].includes(technique.tier), `tier fuera de 0-2: ${technique.id}`);
     assert.ok(technique.er >= prevEr, `orden de ER roto en ${technique.id}`);
     prevEr = technique.er;
   }
+});
+
+test("catalogo: hidden_triple va a tier 2 (la tabla de niveles, no el ER)", () => {
+  const byId = Object.fromEntries(TECHNIQUES.map((t) => [t.id, t]));
+  assert.equal(byId.hidden_triple.tier, 2);
+  assert.equal(byId.hidden_triple.er, 4.0, "el ER no cambia: 4.0");
+  // naked_triple sigue en tier 1 (3.6): la simetria del nombre no manda
+  assert.equal(byId.naked_triple.tier, 1);
 });
 
 test("catalogo: cada id tiene etiqueta en español", () => {
@@ -53,7 +61,7 @@ test("cada detector dispara en su fixture, con targets no vacios", () => {
     let applied = 0;
     let guard = 0;
     while (!state.isSolved() && guard++ < 300) {
-      const deduction = findDeduction(state, { maxTier: 1 });
+      const deduction = findDeduction(state, { maxTier: 2 });
       if (!deduction) break;
       const check = verifyDeduction(state, deduction);
       assert.ok(check.ok, `${id}: paso sin justificacion (${deduction.technique}): ${check.reason}`);

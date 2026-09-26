@@ -13,7 +13,7 @@ Implementacion: `src/core/techniques.js`. Primitivas: `src/core/analysis.js`.
 ```js
 {
   technique: "hidden_single",   // id canonico en INGLES, estable
-  tier: 0,                      // 0 = facil, 1 = medio (escalera de U2)
+  tier: 0,                      // 0 facil, 1 medio, 2 dificil, 3 experto
   er: 1.5,                      // rating de referencia (Sudoku Explainer)
   action: "place",              // "place" | "eliminate"
   targets: [                    // lo unico que muta el tablero
@@ -49,7 +49,22 @@ Implementacion: `src/core/techniques.js`. Primitivas: `src/core/analysis.js`.
 - **`text` lo agrega U3.** U2 deja el campo ausente. U3 lo completa sin cambiar la
   forma.
 
-## Ids de la escalera U2 (tier 0 y 1)
+## Tier: la tabla de niveles manda, no el ER
+
+La **pertenencia a un tier la define la tabla de niveles del research (seccion
+4.2)**, no una aritmetica de ER (SPEC 7bis). El ER **ordena** la evaluacion
+ascendente dentro del catalogo y sirve de diagnostico, pero nunca decide el
+nivel: los ER se solapan entre tiers a proposito (X-Wing tiene ER 3.2 y es
+Dificil; hidden triple 4.0 y naked triple 3.6).
+
+| Tier | Nivel | Tecnicas |
+|---|---|---|
+| 0 | Facil | full house, hidden single, naked single |
+| 1 | Medio | + locked candidates (pointing, claiming), naked pair, hidden pair, naked triple |
+| 2 | Dificil | + hidden triple, naked quad, X-Wing, Swordfish, XY-Wing, XYZ-Wing |
+| 3 | Experto | + unique rectangle, simple colors, X-Chain, Skyscraper, 2-String Kite, W-Wing, Jellyfish, XY-Chain |
+
+## Ids del catalogo (tier 0 y 1)
 
 | id | tier | ER | action |
 |---|---|---|---|
@@ -61,7 +76,7 @@ Implementacion: `src/core/techniques.js`. Primitivas: `src/core/analysis.js`.
 | `naked_pair` | 1 | 3.0 | eliminate |
 | `hidden_pair` | 1 | 3.4 | eliminate |
 | `naked_triple` | 1 | 3.6 | eliminate |
-| `hidden_triple` | 1 | 4.0 | eliminate |
+| `hidden_triple` | 2 | 4.0 | eliminate |
 
 U3 extiende el catalogo (`TECHNIQUES`) con las familias dificiles (fish, wings,
 chains, unicidad) y agrega el `text`. El orden de evaluacion es el orden del

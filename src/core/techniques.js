@@ -349,8 +349,10 @@ defineTechnique("naked_triple", 1, 3.6, "eliminate", (state) => {
 });
 
 // Hidden Triple: tres digitos contenidos en las mismas tres casillas de una
-// unidad. Elimina los demas candidatos de esas casillas. ER 4.0.
-defineTechnique("hidden_triple", 1, 4.0, "eliminate", (state) => {
+// unidad. Elimina los demas candidatos de esas casillas. ER 4.0; tier 2 (la
+// tabla de niveles del research 4.2 lo pone en Dificil, no en Medio, aunque su
+// hermano naked_triple sea tier 1).
+defineTechnique("hidden_triple", 2, 4.0, "eliminate", (state) => {
   for (const unit of UNITS) {
     const missing = maskDigits(state.unitMissingDigits(unit));
     for (const triple of combinations(missing, 3)) {
@@ -362,7 +364,7 @@ defineTechnique("hidden_triple", 1, 4.0, "eliminate", (state) => {
       const targets = eliminateOthersInCells(state, union, mask);
       if (targets.length === 0) continue;
       const digits = triple.slice().sort((a, b) => a - b);
-      return makeDeduction("hidden_triple", 1, 4.0, "eliminate", targets, {
+      return makeDeduction("hidden_triple", 2, 4.0, "eliminate", targets, {
         unit: unitRef(unit),
         cells: union,
         digit: null,

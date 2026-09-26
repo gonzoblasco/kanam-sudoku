@@ -3,7 +3,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { DIFFICULTY, isEasy, ratePuzzle } from "../src/core/rater.js";
+import { DIFFICULTY, difficultyOfTier, isEasy, ratePuzzle } from "../src/core/rater.js";
 import { countSolutions } from "../src/core/solver.js";
 import { isSolved } from "../src/core/validator.js";
 
@@ -42,6 +42,15 @@ test("ratePuzzle: no inventa tier cuando no puede resolver", () => {
   assert.equal(result.difficulty, null);
   assert.equal(result.unsolvedTier, result.maxTier);
   assert.ok(result.maxTier <= 1, "el rater base no debe pasar de tier 1");
+});
+
+test("ratePuzzle: la escalera reconoce los 4 niveles de la spec", () => {
+  assert.equal(difficultyOfTier(0), DIFFICULTY.EASY);
+  assert.equal(difficultyOfTier(1), DIFFICULTY.MEDIUM);
+  assert.equal(difficultyOfTier(2), DIFFICULTY.HARD);
+  assert.equal(difficultyOfTier(3), DIFFICULTY.EXPERT);
+  assert.equal(difficultyOfTier(4), null, "un tier fuera de la escalera no tiene nivel");
+  assert.equal(Object.values(DIFFICULTY).length, 4);
 });
 
 test("ratePuzzle: los pasos son reales (el rater reconstruye un tablero valido)", () => {
