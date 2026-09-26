@@ -262,6 +262,52 @@ select:focus-visible {
   margin: 0.15rem 0;
 }
 
+/* --- U7: pista --- */
+
+.hint {
+  max-width: 32rem;
+  width: 100%;
+  text-align: center;
+  border: 1px solid var(--color-line);
+  border-radius: 8px;
+  padding: 0.6rem 0.8rem;
+  background: #fbfaf7;
+  min-height: 1rem;
+}
+
+.hint-text {
+  margin: 0;
+}
+
+.hint-count {
+  margin: 0.3rem 0 0;
+  font-size: 0.85rem;
+  color: #4a443b;
+}
+
+/* Resaltado de la evidencia: atributos ademas de color (NFR-4).
+ * Las celdas del evidence llevan contorno grueso y un punto marcador; las de la
+ * unidad un fondo tenue. Nunca se distinguen solo por color. */
+.cell[data-hint="cell"] {
+  position: relative;
+  background: #e6f0ff;
+  box-shadow: inset 0 0 0 3px var(--color-focus);
+  font-weight: 700;
+}
+
+.cell[data-hint="unit"] {
+  background: #f0f4fa;
+}
+
+.cell[data-hint="cell"]::after {
+  content: "\25CF";
+  position: absolute;
+  top: 1px;
+  right: 2px;
+  font-size: 0.5rem;
+  color: var(--color-focus);
+}
+
 @media (prefers-reduced-motion: reduce) {
   .cell {
     transition: none;

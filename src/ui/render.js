@@ -63,11 +63,25 @@ export function mountGame(root, options = {}) {
   help.id = "ayuda";
   help.textContent =
     "Flechas para moverte, 1 a 9 para cargar, N para el modo nota, " +
-    "Suprimir o Retroceso para borrar, Ctrl+Z y Ctrl+Shift+Z para deshacer y rehacer.";
+    "P para pedir una pista, Suprimir o Retroceso para borrar, Ctrl+Z y Ctrl+Shift+Z " +
+    "para deshacer y rehacer.";
 
   const statsPanel = document.createElement("section");
   statsPanel.className = "stats";
   statsPanel.setAttribute("aria-label", "Estadisticas");
+
+  // Region de pista: aria-live para que el lector de pantalla la anuncie al
+  // pedirla, sin interrumpir (polite). El texto es el del motor, tal cual.
+  const hintPanel = document.createElement("section");
+  hintPanel.className = "hint";
+  hintPanel.setAttribute("role", "status");
+  hintPanel.setAttribute("aria-live", "polite");
+  hintPanel.setAttribute("aria-label", "Pista");
+  const hintText = document.createElement("p");
+  hintText.className = "hint-text";
+  const hintCount = document.createElement("p");
+  hintCount.className = "hint-count";
+  hintPanel.append(hintText, hintCount);
 
   // --- controles ---
   const levelSelect = document.createElement("select");
@@ -88,11 +102,13 @@ export function mountGame(root, options = {}) {
   const noteButton = button("Modo nota", () => setNoteMode(!noteMode));
   noteButton.setAttribute("aria-pressed", "false");
   const autoNotesButton = button("Auto-anotar", () => {
+    clearHint();
     session.fillAutoNotes();
     refresh();
     status.textContent = "Anotaciones automaticas cargadas con los candidatos reales.";
   });
   const clearNotesButton = button("Borrar anotaciones", () => {
+    clearHint();
     session.clearAllNotes();
     refresh();
     status.textContent = "Anotaciones borradas.";
@@ -102,6 +118,7 @@ export function mountGame(root, options = {}) {
       status.textContent = "No hay nada para deshacer.";
       return;
     }
+    clearHint();
     refresh();
   });
   undoButton.id = "deshacer";
@@ -110,6 +127,7 @@ export function mountGame(root, options = {}) {
       status.textContent = "No hay nada para rehacer.";
       return;
     }
+    clearHint();
     refresh();
   });
   redoButton.id = "rehacer";
@@ -120,20 +138,32 @@ export function mountGame(root, options = {}) {
   });
   const newButton = button("Partida nueva", () => {
     session.startNew(levelSelect.value, randomSeed());
+    clearHint();
+    hintText.textContent = "";
+    hintCount.textContent = "";
     status.textContent = `Partida nueva de nivel ${LEVEL_LABELS[levelSelect.value] ?? levelSelect.value}.`;
     refresh();
     focusSelected();
   });
   const restartButton = button("Reiniciar", () => {
     session.restart();
+    clearHint();
+    hintText.textContent = "";
+    hintCount.textContent = "";
     status.textContent = "Partida reiniciada.";
     refresh();
     focusSelected();
   });
 
+  // Pista: muestra el razonamiento del motor y resalta la evidencia. NO aplica la
+  // jugada: el jugador decide.
+  const hintButton = button("Pista", () => showHint());
+  hintButton.id = "pista";
+
   toolbar.append(
     labelWrap("Nivel", levelSelect),
     timerEl,
+    hintButton,
     noteButton,
     autoNotesButton,
     clearNotesButton,
@@ -152,7 +182,7 @@ export function mountGame(root, options = {}) {
     noteStrip.appendChild(b);
   }
 
-  wrap.append(toolbar, grid, noteStrip, status, help, statsPanel);
+  wrap.append(toolbar, grid, noteStrip, hintPanel, status, help, statsPanel);
   root.append(wrap);
 
   // --- construccion del tablero ---
@@ -216,6 +246,12 @@ export function mountGame(root, options = {}) {
       return;
     }
 
+    if (event.key === "p" || event.key === "P") {
+      event.preventDefault();
+      showHint();
+      return;
+    }
+
     if (isArrowKey(event.key)) {
       event.preventDefault();
       select(move(index, ARROW_KEYS[event.key]));
@@ -243,6 +279,7 @@ export function mountGame(root, options = {}) {
       status.textContent = `La casilla ${describe(index)} es un numero dado: no se puede cambiar.`;
       return;
     }
+    clearHint();
     session.place(index, digit);
     refresh();
     announce(index);
@@ -253,6 +290,7 @@ export function mountGame(root, options = {}) {
       status.textContent = `En la casilla ${describe(index)} no se pueden anotar candidatos.`;
       return;
     }
+    clearHint();
     session.toggleNote(index, digit);
     refresh();
     announce(index);
@@ -263,6 +301,7 @@ export function mountGame(root, options = {}) {
       status.textContent = `La casilla ${describe(index)} es un numero dado: no se puede borrar.`;
       return;
     }
+    clearHint();
     session.clear(index);
     refresh();
     announce(index);
@@ -289,6 +328,45 @@ export function mountGame(root, options = {}) {
   function winText() {
     return `Resuelto en ${formatDuration(session.timer.elapsed())}. ` +
       "El tablero esta completo y sin conflictos.";
+  }
+
+  // --- pistas ---
+  // Estado del resaltado vigente: celdas, unidades y su clave.
+  let hintState = { cells: [], units: [], unitCells: [], key: null };
+
+  // Al cambiar el tablero, una pista vieja deja de ser valida: se limpia.
+  function clearHint() {
+    if (hintState.key === null) return;
+    hintState = { cells: [], units: [], unitCells: [], key: null };
+  }
+
+  function showHint() {
+    const result = session.hint();
+    const text = result.found ? result.text : result.message;
+    hintText.textContent = text;
+    hintCount.textContent = `Pistas usadas: ${session.game.hintsUsed}.`;
+
+    if (!result.found) {
+      hintState = { cells: [], units: [], unitCells: [], key: null };
+      refresh();
+      return;
+    }
+
+    // La clave evita repintar el resaltado identico.
+    hintState = {
+      cells: result.highlight.cells,
+      units: result.highlight.units,
+      unitCells: result.unitCells,
+      key: `${result.technique}:${result.highlight.cells.join(",")}:${result.highlight.units
+        .map((u) => `${u.type}${u.index}`)
+        .join(",")}`,
+    };
+    refresh();
+  }
+
+  // Clave estable de la pista vigente, para saber si una celda esta resaltada.
+  function currentHintKey() {
+    return hintState.key;
   }
 
   // --- render ---
@@ -318,11 +396,17 @@ export function mountGame(root, options = {}) {
       el.setAttribute("aria-selected", i === game.selected ? "true" : "false");
       el.setAttribute("aria-label", cellAriaLabel(game, i));
 
+      // Resaltado de la pista: atributo ademas de color (NFR-4).
+      if (hintState.cells.includes(i)) el.setAttribute("data-hint", "cell");
+      else if (hintState.unitCells.includes(i)) el.setAttribute("data-hint", "unit");
+      else el.removeAttribute("data-hint");
+
       if (conflictSet.has(i)) el.setAttribute("aria-invalid", "true");
       else el.removeAttribute("aria-invalid");
     }
 
     grid.setAttribute("aria-label", boardAriaLabel(game));
+    grid.dataset.hintKey = currentHintKey() ?? "";
     timerEl.textContent = formatDuration(session.timer.elapsed());
     timerEl.setAttribute("aria-label", `Tiempo de juego ${formatDuration(session.timer.elapsed())}`);
     pauseButton.textContent = session.timer.isRunning() ? "Pausar" : "Continuar";
