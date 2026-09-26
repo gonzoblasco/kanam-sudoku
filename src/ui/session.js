@@ -11,6 +11,7 @@ import { DIFFICULTY } from "../core/rater.js";
 import { generatePuzzle } from "../core/generator.js";
 import { GameState } from "./state.js";
 import { Timer } from "./timer.js";
+import { hintFor, hintMaxTier } from "./hints.js";
 import {
   loadGame,
   saveGame,
@@ -126,6 +127,19 @@ export class GameSession {
     return true;
   }
 
+  /**
+   * Devuelve la pista mas simple aplicable y la cuenta. NO aplica la jugada: la
+   * pista muestra el razonamiento y el jugador decide.
+   */
+  hint() {
+    const result = hintFor(this.game, { maxTier: hintMaxTier(this.difficulty) });
+    if (result.found) {
+      this.game.registerHint();
+      this.persist();
+    }
+    return result;
+  }
+
   undo() {
     const changed = this.game.undo();
     if (changed) this.persist();
@@ -190,6 +204,7 @@ export class GameSession {
       elapsedMs: this.timer.elapsed(),
       difficulty: this.difficulty,
       won: this.won,
+      hintsUsed: this.game.hintsUsed,
       history: {
         cursor: this.game.history.cursor,
         entries: this.game.history.entries.map((entry) => ({

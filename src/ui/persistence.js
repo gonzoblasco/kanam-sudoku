@@ -34,6 +34,7 @@ const MIGRATIONS = {
     elapsedMs: old.elapsedMs ?? old.elapsed ?? 0,
     difficulty: old.difficulty ?? null,
     won: Boolean(old.won),
+    hintsUsed: old.hintsUsed ?? 0,
     history: old.history ?? null,
   }),
 };
@@ -155,6 +156,7 @@ export function serializeGame(game) {
     elapsedMs: game.elapsedMs,
     difficulty: game.difficulty ?? null,
     won: Boolean(game.won),
+    hintsUsed: Number(game.hintsUsed) || 0,
     history,
   };
 }
@@ -184,6 +186,7 @@ export function deserializeGame(payload) {
     elapsedMs: Number(payload.elapsedMs) || 0,
     difficulty: payload.difficulty ?? null,
     won: Boolean(payload.won),
+    hintsUsed: Number(payload.hintsUsed) || 0,
     history,
   };
 }

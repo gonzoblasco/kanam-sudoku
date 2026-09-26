@@ -10,6 +10,7 @@
 
 import { SIZE, EMPTY, Board } from "../core/board.js";
 import { conflictCells, isSolved } from "../core/validator.js";
+import { analyze } from "../core/analysis.js";
 import { emptyNotes, autoNotes } from "./notes.js";
 import { History, copySnapshot } from "./history.js";
 
@@ -53,6 +54,8 @@ export class GameState {
     this.notes = options.notes ? Array.from(options.notes) : emptyNotes();
     this.selected = firstEditable(this.board);
     this.history = options.history ?? new History();
+    // Contador de pistas usadas en la partida (dato para las estadisticas).
+    this.hintsUsed = Number(options.hintsUsed) || 0;
     // El estado inicial (puzzle limpio) es la primera entrada del historial.
     if (this.history.size() === 0) this.history.reset(this.snapshot());
   }
@@ -84,6 +87,20 @@ export class GameState {
     return Array.from(this.board.values);
   }
 
+  /**
+   * Estado de analisis del core (candidatos, unidades, peers), para el motor de
+   * tecnicas. Se construye al momento: no se cachea, asi no queda desincronizado
+   * cuando el jugador carga o borra un numero.
+   */
+  analysisState() {
+    return analyze(this.board.values);
+  }
+
+  /** Candidatos legales reales de una celda, segun el motor. */
+  candidatesOf(index) {
+    return this.analysisState().candidates[index];
+  }
+
   /** Celdas involucradas en algun conflicto (no solo la ultima cargada). */
   conflictingCells() {
     return conflictCells(this.board);
@@ -97,6 +114,15 @@ export class GameState {
   /** Snapshot del estado reversible: valores + notas. */
   snapshot() {
     return { values: this.board.values, notes: this.notes };
+  }
+
+  /**
+   * Registra que se mostro una pista. No es una mutacion del tablero, asi que no
+   * entra al historial de undo: pedir una pista no cambia el estado de juego.
+   */
+  registerHint() {
+    this.hintsUsed++;
+    return this.hintsUsed;
   }
 
   /** Registra el estado actual en el historial. */
@@ -217,6 +243,7 @@ export class GameState {
       puzzle: this.puzzle,
       values: this.values(),
       notes: Array.from(this.notes),
+      hintsUsed: this.hintsUsed,
       history: {
         cursor: this.history.cursor,
         entries: this.history.entries.map((entry) => ({
@@ -258,7 +285,7 @@ export class GameState {
       );
     }
     if (history.size() === 0) history.reset({ values: board.values, notes });
-    return new GameState(board, { notes, history });
+    return new GameState(board, { notes, history, hintsUsed: payload.hintsUsed });
   }
 }
 

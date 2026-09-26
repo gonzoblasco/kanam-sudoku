@@ -77,6 +77,48 @@ test("ganar: detiene el cronometro y actualiza estadisticas", () => {
   assert.equal(s.stats.best[DIFFICULTY.EASY], 30000);
 });
 
+test("hint: devuelve la pista, la cuenta y NO aplica la jugada", () => {
+  const { s } = session();
+  s.startNew(DIFFICULTY.EASY);
+  const before = JSON.stringify(s.game.values());
+  const hint = s.hint();
+  assert.equal(hint.found, true);
+  assert.equal(typeof hint.text, "string");
+  assert.equal(s.game.hintsUsed, 1, "la pista se cuenta");
+  assert.equal(JSON.stringify(s.game.values()), before, "el tablero no cambia");
+  assert.equal(s.game.canUndo(), false, "una pista no es una mutacion");
+});
+
+test("hint: usa el tier de la dificultad de la partida", () => {
+  const { s } = session();
+  s.startNew(DIFFICULTY.EASY);
+  const hint = s.hint();
+  if (hint.found) assert.ok(hint.deduction.tier <= 0, `tier ${hint.deduction.tier} en facil`);
+});
+
+test("hint: cuando no hay pista, no cuenta y no persiste", () => {
+  const STUCK = "080520000100000000005007400007002308030045000000800006010000000900006074400908020";
+  const { s } = session({ generate: () => ({ puzzle: STUCK, solution: STUCK, measured: DIFFICULTY.HARD, maxTier: 2 }) });
+  s.startNew(DIFFICULTY.HARD);
+  const hint = s.hint();
+  assert.equal(hint.found, false);
+  assert.equal(s.game.hintsUsed, 0, "una pista no encontrada no cuenta");
+});
+
+test("hintsUsed sobrevive la persistencia", () => {
+  const store = fakeStorage();
+  const clock = fakeClock();
+  const first = new GameSession({ storage: store, generate: fakeGenerate, now: clock.now, seed: 1 });
+  first.startNew(DIFFICULTY.EASY);
+  first.hint();
+  first.hint();
+  first.persist();
+
+  const second = new GameSession({ storage: store, generate: fakeGenerate, now: clock.now, seed: 1 });
+  second.load();
+  assert.equal(second.game.hintsUsed, 2, "el contador de pistas se retoma");
+});
+
 test("abandonar NO ensucia las estadisticas", () => {
   const store = fakeStorage();
   const { s } = session({ storage: store });
