@@ -73,8 +73,8 @@ pagos.
 | Unidad | Alcance | Depende de |
 |---|---|---|
 | **U1** | Modelo de tablero + solver + validador (puro, testeable) | - |
-| **U2** | Generador con solucion unica + escalera de dificultad | U1 |
-| **U3** | Motor de tecnicas con explicacion (alimenta hints) | U1, U2 |
+| **U2** | Generador con solucion unica + primitivas de analisis + rater base (singles, locked candidates, subsets) | U1 |
+| **U3** | Motor de tecnicas con explicacion: extiende el rater a la escalera completa y redacta el texto del hint | U1, U2 |
 | **U4** | UI del tablero: render, input, teclado, a11y | U1 |
 | **U5** | Notas + undo/redo | U1, U4 |
 | **U6** | Timer, estadisticas, persistencia e historial | U1, U4 |
@@ -97,6 +97,28 @@ pagos.
 - **U7:** el hint señala la tecnica y la region correcta en un tablero de prueba
   conocido.
 - **U8:** la PWA carga offline y es instalable; build verde.
+
+## 7bis. Borde U2 / U3 (decidido 2026-09-26)
+
+El generador necesita medir dificultad, y medir dificultad necesita los puzzles. La
+resolucion es cortar por **estructura compartida, no por tecnica**:
+
+- **U2 entrega** el generador (solucion unica garantizada) mas las **primitivas de
+  analisis** que el rater y los hints comparten: candidatos por celda, unidades
+  (filas/columnas/cajas), peers, y el contrato de salida de una deduccion
+  (`{technique, cells, value, eliminated}`). Sobre eso implementa el **rater base**
+  con las tecnicas de tier 0 y 1 (singles, locked candidates, subsets), que son las
+  que definen si un puzzle es facil o medio.
+- **U3 extiende** el mismo rater con las familias dificiles (fish, wings, chains,
+  unicidad) y agrega lo que U2 no puede: el **texto llano** del hint.
+
+Razon: partir por tecnica obligaria a U3 a reescribir el motor de U2. Partir por
+estructura deja un solo motor que crece. El catalogo de tecnicas y los datos de
+deteccion estan en `RESEARCH-TECNICAS.md` (secciones 6 y la escalera de la 4).
+
+**Criterio de dificultad adoptado:** tecnicas requeridas, no cantidad de huecos.
+El conteo de huecos no mide dificultad y no es explicable por el motor de hints.
+Base y desacuerdo documentados en `RESEARCH-TECNICAS.md` seccion 4.3.
 
 ## 8. Riesgos
 
