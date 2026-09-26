@@ -142,6 +142,126 @@ h1 {
   font-weight: 600;
 }
 
+/* --- U5/U6: barra de controles, cronometro, notas y estadisticas --- */
+
+.game {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+  width: 100%;
+}
+
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  justify-content: center;
+  max-width: 40rem;
+}
+
+.toolbar button {
+  padding: 0.4rem 0.7rem;
+  border: 1px solid var(--color-line-strong);
+  border-radius: 6px;
+  background: var(--color-surface);
+  color: var(--color-text);
+  font: inherit;
+  cursor: pointer;
+}
+
+.toolbar button:focus-visible,
+.note-key:focus-visible,
+select:focus-visible {
+  outline: 3px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+/* Deshabilitado: atenuado Y con atributo aria-disabled (no solo color). */
+.toolbar button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  text-decoration: line-through;
+}
+
+.toolbar button[aria-pressed="true"] {
+  background: var(--color-selected);
+  font-weight: 700;
+}
+
+.field {
+  display: inline-flex;
+  gap: 0.4rem;
+  align-items: center;
+}
+
+.timer {
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  min-width: 4.5rem;
+  display: inline-block;
+  text-align: center;
+}
+
+.note-strip {
+  display: none;
+  gap: 0.25rem;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+/* La barra de notas solo aparece en modo nota, ademas del aria-pressed. */
+.game.note-mode .note-strip {
+  display: flex;
+}
+
+.note-key {
+  width: 2rem;
+  height: 2rem;
+  border: 1px solid var(--color-line-strong);
+  border-radius: 6px;
+  background: var(--color-surface);
+  font: inherit;
+  cursor: pointer;
+}
+
+/* Notas dibujadas dentro de la celda: rejilla 3x3 sin depender del color. */
+.notes {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  width: 100%;
+  height: 100%;
+  font-size: calc(var(--cell-size) * 0.24);
+  line-height: 1;
+  color: #6b6459;
+}
+
+.notes span {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.stats {
+  max-width: 40rem;
+  text-align: center;
+}
+
+.stats h2 {
+  font-size: 1.05rem;
+  margin: 0 0 0.3rem;
+}
+
+.stats h3 {
+  font-size: 0.95rem;
+  margin: 0.6rem 0 0.2rem;
+}
+
+.stats p {
+  margin: 0.15rem 0;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .cell {
     transition: none;
