@@ -5,9 +5,9 @@
 ## Fase actual
 
 Definition en curso (2026-09-26). U1 (motor puro), U2 (generador + primitivas +
-rater base), U3a (tier 2 + motor de explicaciones), U4 (UI jugable) y U5+U6
-(notas, undo/redo, timer, estadisticas, persistencia y eleccion de dificultad)
-entregadas y testeadas.
+rater base), U3a (tier 2 + motor de explicaciones), U4 (UI jugable), U5+U6
+(notas, undo/redo, timer, estadisticas, persistencia y dificultad) y U7+U8 (hints
+en UI + PWA offline con deploy preparado) entregadas y testeadas.
 
 ## Que funciona
 
@@ -103,18 +103,20 @@ entregadas y testeadas.
 - **Firma comun:** `solve` y `countSolutions` aceptan `Board | number[]` y no
   mutan la entrada (fix del 2026-09-26 sobre una inconsistencia de firma:
   `countSolutions` solo tomaba `number[]`).
-- Tests: 219 pasando con `node --test` (`board`, `validator`, `solver`, `random`,
+- Tests: 253 pasando con `node --test` (`board`, `validator`, `solver`, `random`,
   `analysis`, `techniques`, `rater`, `generator`, `navigation`, `state`, `a11y`,
-  `notes`, `history`, `timer`, `persistence`, `session`). Incluye unicidad real
-  (40 puzzles generados, cada uno verificado con el solver), determinismo por
-  semilla, un puzzle por tier resuelto por el rater, un test por tecnica de tier
-  2, tests del `text` del hint, tests de logica de UI, la ida y vuelta de undo
-  (20 mutaciones mixtas -> estado inicial exacto), la pausa que no acumula, la
-  migracion de esquema viejo, el `localStorage` corrupto y las stats que no se
-  ensucian al abandonar.
+  `notes`, `history`, `timer`, `persistence`, `session`, `hints`, `pwa`). Incluye
+  unicidad real (40 puzzles generados, cada uno verificado con el solver),
+  determinismo por semilla, un puzzle por tier resuelto por el rater, un test por
+  tecnica de tier 2, tests del `text` del hint, tests de logica de UI, la ida y
+  vuelta de undo (20 mutaciones mixtas -> estado inicial exacto), la pausa que no
+  acumula, la migracion de esquema viejo, el `localStorage` corrupto, las stats
+  que no se ensucian al abandonar, el resaltado del hint tolerante a `unit: null`
+  y `byDigit` vacio, y la logica de precache/version/registro del SW.
 - Cero dependencias de runtime. `vite` **7.3.6** como devDependency (verificado:
-  `npm install` y `npm run build` corren de verdad). El DOM no se testea (no se
-  sumo jsdom): la logica de UI se extrajo a funciones puras.
+  `npm install` y `npm run build` corren de verdad). El DOM no se testea en
+  `node --test` (no se sumo jsdom): la logica de UI se extrajo a funciones puras.
+  El service worker se escribe a mano, sin plugin de PWA.
 
 ## Que esta bloqueado
 
@@ -125,14 +127,15 @@ entregadas y testeadas.
 1. U3b: familia tier 3 (unique rectangle, simple colors, X-Chain, Skyscraper,
    2-String Kite, W-Wing, Jellyfish, XY-Chain) y su `text`. Mismo patron que
    U3a: detector + `verifyDeduction` + explicacion parametrizada.
-2. U7: hints en UI cableados al motor de tecnicas (mostrar el `text` del hint
-   sobre el tablero y señalar la unidad).
-3. U8: PWA offline + deploy.
+2. Deploy: solo falta habilitar Pages en el repo (ver Decisiones abiertas).
 
 ## Decisiones abiertas
 
 - Visibilidad del repo (publico/privado).
-- Target de deploy (GitHub Pages u otro).
+- **Deploy: preparado, sin habilitar (U8).** Falta un paso humano: en GitHub,
+  Settings -> Pages -> Build and deployment -> Source: **GitHub Actions**. Recien
+  ahi el workflow `.github/workflows/deploy.yml` puede publicar. No se habilito
+  ni se deployo nada.
 - **Version de `vite`: resuelto (U4).** Quedo en `^7.3.6`, la version que se
   instalo y con la que `npm install` y `npm run build` se verificaron. El rango
   viejo `^7.0.0` nunca se habia probado.
@@ -143,6 +146,55 @@ entregadas y testeadas.
   La dificultad final la decide el rater, no la meta: la meta es solo el punto de
   partida de la quita. En dificil, 10 de 12 semillas matchearon con maxAttempts 40;
   el generador reintenta con semillas derivadas y no miente si no matchea.
+
+- La UI separa logica pura de DOM: `navigation.js`, `state.js`, `a11y.js`,
+  `notes.js`, `history.js`, `timer.js`, `persistence.js`, `session.js`, `hints.js`
+  y `pwa.js` no tocan el DOM y se testean con `node --test`; `render.js` solo
+  cablea. El DOM no se testea en `node --test` (no se sumo jsdom, por la
+  restriccion de cero dependencias nuevas).
+- U7: la pista **no aplica** la jugada. `hintFor` toma la deduccion mas simple con
+  `findDeduction` (acotada por la dificultad via `hintMaxTier`) y la re-verifica
+  con `verifyDeduction`. El `text` es el del motor, tal cual; la UI no escribe
+  copy propio. Pedir una pista **no** es una mutacion: no entra al historial de
+  undo, solo incrementa `hintsUsed` (que si se persiste).
+- U7: el resaltado vive en atributos (`data-hint="cell"` / `"unit"`) ademas del
+  color: las celdas del evidence llevan contorno grueso y un punto marcador, las
+  de la unidad un fondo tenue. `hintHighlight` tolera `unit: null`, `byDigit`
+  ausente o vacio, y las formas extra por familia (line, box, fish, wing).
+- U8: los iconos se generan localmente con `scripts/generate-icons.mjs` (PNG
+  escrito con `node:zlib`, sin dependencias). El service worker se escribe a mano
+  en `src/ui/sw-template.js` y lo emite `vite.config.js` con la lista de precache
+  real y una version derivada de ella. `base` queda relativo (`"./"`), para que
+  funcione bajo el subpath de Pages y no solo en la raiz del dominio.
+- U8: el fallback de navegacion offline del SW apunta a `./index.html` (el
+  archivo precacheado), no a `./`. Con `./` una navegacion en frio offline no
+  encontraba nada; lo encontro una corrida offline real con Chromium via
+  Playwright, no una suposicion.
+- U8: el SW se registra **solo** en produccion (en dev pelea con el HMR).
+
+## Verificacion offline (U8)
+
+Probado de verdad con Chromium headless (Playwright-core, ya presente en el
+entorno) sobre `dist/` servido local:
+
+- SW activo y controlando la pagina; cache `kanam-sudoku-<version>` con 8
+  entradas (html, manifest, 3 iconos, js, css y `/`).
+- Con `context.setOffline(true)` y recarga: la app carga igual, 81 celdas
+  renderizadas, la pista responde y el teclado carga numeros. Cero errores de
+  consola.
+- Bajo subpath estilo Pages (`/kanam-sudoku/`): 81 celdas online y 81 offline,
+  scope del SW correcto.
+
+Lo que **no** se probo: un dispositivo real sin red (se simulo offline a nivel de
+contexto del navegador), y la instalacion como PWA (no se probo el prompt de
+instalacion ni el lanzamiento en modo standalone).
+
+## Deploy (U8, sin habilitar)
+
+`.github/workflows/deploy.yml` esta listo: corre `npm ci`, `npm test`, `npm run
+build` y publica `dist` con `actions/deploy-pages`. **No se habilito Pages ni se
+deployo nada.** Falta un paso humano: en GitHub, Settings -> Pages -> Build and
+deployment -> Source: GitHub Actions.
 
 ## Notas de implementacion
 
