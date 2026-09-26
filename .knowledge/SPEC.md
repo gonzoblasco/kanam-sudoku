@@ -1,0 +1,109 @@
+# SPEC v1 - Kanam SUDOKU
+
+<!-- project: github.com/gonzoblasco/kanam-sudoku -->
+
+Fecha: 2026-09-26. Fuente: BRIEF.md + respuestas de Gonzo (clasico 9x9, y los
+cuatro imprescindibles).
+
+## 1. Definicion del producto
+
+Sudoku clasico 9x9, jugable en cualquier navegador, instalable como PWA y
+funcional sin conexion. El valor diferencial son los **hints que explican la
+tecnica**: el juego razona sobre el tablero y muestra el paso logico, no el
+numero final.
+
+## 2. Requisitos funcionales
+
+- **FR-1 Tablero.** Grilla 9x9 con las 9 cajas 3x3. Celdas dadas (fijas) y
+  celdas editables. Validacion visual de conflictos (fila, columna, caja).
+- **FR-2 Input.** Cargar un numero, borrar, y alternar modo nota. Soporte de
+  teclado completo (flechas para moverse, 1-9 para cargar, Supr para borrar,
+  `N` para modo nota) y puntero.
+- **FR-3 Notas.** Modo nota por celda; marcar y desmarcar candidatos. Borrar un
+  numero no rompe las notas de la celda. Ademas: calculo de candidatos del
+  tablero ("que numeros son posibles aca segun las reglas").
+- **FR-4 Undo / redo.** Historial de jugadas reversible: cargar numero, borrar,
+  marcar/desmarcar nota. Sin perdida de estado y sin limites arbitrarios bajos.
+- **FR-5 Timer.** Cronometro por partida. Pausa (y el cronometro no corre en
+  pausa). Se detiene al resolver.
+- **FR-6 Estadisticas.** Mejor tiempo por dificultad, partidas jugadas y
+  ganadas, racha. Persistidas localmente.
+- **FR-7 Historial.** Partida en curso recuperable al volver a abrir el juego.
+- **FR-8 Dificultad.** Escala real y verificable (ver NFR-3), no un conteo de
+  celdas vacias. Seleccion de dificultad al empezar.
+- **FR-9 Hints que explican.** El sistema detecta la tecnica mas simple
+  aplicable al tablero y la explica en lenguaje llano, señalando la celda o el
+  grupo involucrado. Nunca un "revela el numero" sin razon.
+- **FR-10 Nueva partida / reiniciar.** Empezar una partida nueva en la misma
+  dificultad o en otra; reiniciar la actual.
+
+## 3. Requisitos no funcionales
+
+- **NFR-1 Offline-first.** Funciona sin red despues de la primera carga. Sin
+  backend, sin cuentas, sin telemetria.
+- **NFR-2 Rendimiento.** Generar un puzzle no bloquea la interfaz de forma
+  perceptible; el motor puro es testeable sin DOM.
+- **NFR-3 Solucion unica.** Todo puzzle generado tiene exactamente una solucion.
+  Verificado por el propio generador, no asumido.
+- **NFR-4 Accesibilidad.** Grilla navegable por teclado, roles y etiquetas ARIA
+  correctas, foco visible, contraste AA, y ninguna informacion que dependa solo
+  del color.
+- **NFR-5 Cero dependencias de runtime.** Sin librerias de UI ni de sudoku.
+- **NFR-6 Tests.** `node --test` sobre el motor, incluyendo los casos borde:
+  puzzle invalido, multiple solucion, tablero resuelto.
+
+## 4. Non-goals
+
+Variantes de tablero, multijugador, ranking online, cuentas, backend, anuncios,
+pagos.
+
+## 5. Escenarios de aceptacion
+
+1. **Partida completa.** Elijo dificultad, juego, uso notas y undo, resuelvo el
+   tablero, el timer se detiene y la partida entra a las estadisticas.
+2. **Recuperacion.** Cierro el navegador a mitad de partida, vuelvo, y retomo
+   con el mismo tablero, tiempo y notas.
+3. **Hint honesto.** En un tablero trabado pido un hint y recibo la explicacion
+   de una tecnica aplicable, con la celda/region identificada y el porque.
+4. **Sin red.** Con la PWA instalada, abro el juego en modo avion y funciona.
+5. **Solo teclado.** Completo una partida entera sin tocar el mouse.
+
+## 6. Desglose en unidades
+
+| Unidad | Alcance | Depende de |
+|---|---|---|
+| **U1** | Modelo de tablero + solver + validador (puro, testeable) | - |
+| **U2** | Generador con solucion unica + escalera de dificultad | U1 |
+| **U3** | Motor de tecnicas con explicacion (alimenta hints) | U1, U2 |
+| **U4** | UI del tablero: render, input, teclado, a11y | U1 |
+| **U5** | Notas + undo/redo | U1, U4 |
+| **U6** | Timer, estadisticas, persistencia e historial | U1, U4 |
+| **U7** | Hints en UI cableados al motor de tecnicas | U3, U4 |
+| **U8** | PWA offline + deploy | U4 |
+
+## 7. Criterios de aceptacion por unidad
+
+- **U1:** dado un tablero valido, el solver lo resuelve; dado uno invalido o sin
+  solucion, lo dice sin colgarse. Tests borde incluidos.
+- **U2:** todo puzzle generado tiene solucion unica (verificado), y las
+  dificultades se distinguen por tecnicas requeridas, no por cantidad de huecos.
+- **U3:** cada tecnica detectada devuelve una explicacion legible con la celda o
+  region y el razonamiento; los casos de prueba son tableros reales.
+- **U4:** se puede cargar un numero con teclado y con puntero; el foco es
+  visible; las etiquetas ARIA describen fila, columna, caja, valor y notas.
+- **U5:** undo/redo reconstruye exactamente el estado previo, incluidas notas.
+- **U6:** el timer sobrevive un reload; las estadisticas se actualizan solo al
+  ganar.
+- **U7:** el hint señala la tecnica y la region correcta en un tablero de prueba
+  conocido.
+- **U8:** la PWA carga offline y es instalable; build verde.
+
+## 8. Riesgos
+
+- **Dificultad real es dificil.** Contar huecos no mide dificultad; medir por
+  tecnicas requiere que U3 exista. Mitigacion: U3 antes de cerrar la escalera de
+  dificultad de U2.
+- **Hints que suenan a libro.** El valor esta en explicar en lenguaje llano, no
+  en citar la tecnica. Requiere trabajo de redaccion, no solo de logica.
+- **Generacion lenta en dificultades altas.** Mitigacion: generar en el cliente
+  con corte y reintento; si no alcanza, pre-generar un banco de puzzles.

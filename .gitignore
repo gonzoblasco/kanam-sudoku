@@ -1,0 +1,15 @@
+# Project .gitignore
+
+# Node
+node_modules/
+dist/
+coverage/
+
+# Env
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# OS
+.DS_Store
