@@ -127,16 +127,21 @@ export function isValidBoard(values) {
  * Cuenta soluciones con corte en `cap`. Devuelve como maximo `cap`: sirve para
  * preguntar "hay una sola?" (cap = 2) sin recorrer todo el arbol.
  *
- * @param {number[]} values tablero de 81 valores
+ * Acepta `Board | number[]`, igual que `solve`.
+ *
+ * @param {import("./board.js").Board | number[]} board tablero o array de 81 valores
  * @param {number} [cap=2] tope de soluciones a buscar
  * @param {{nodeLimit?: number}} [options]
  * @returns {number} cantidad de soluciones encontradas, tope `cap`
  */
-export function countSolutions(values, cap = 2, options = {}) {
+export function countSolutions(board, cap = 2, options = {}) {
   const { nodeLimit = DEFAULT_NODE_LIMIT } = options;
-  if (!Array.isArray(values) || values.length !== SIZE) {
+  const input = board instanceof Array ? board : board.values;
+  if (!Array.isArray(input) || input.length !== SIZE) {
     throw new RangeError(`el tablero necesita ${SIZE} celdas`);
   }
+  // Trabajar sobre una copia: no mutar la entrada ni el array de un Board.
+  const values = Array.from(input);
   if (values.some((v) => v !== EMPTY && (!Number.isInteger(v) || v < 1 || v > DIM))) {
     throw new RangeError("valores fuera de rango en el tablero");
   }

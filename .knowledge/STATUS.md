@@ -18,9 +18,12 @@ Definition en curso (2026-09-26). U1 (motor puro) entregada y testeada.
     `conflictedUnits`, `isValid`, `isSolved`.
   - `solver.js`: backtracking con heuristica MRV (celda con menos candidatos
     primero) y mascaras de bits por region. `solve` devuelve
-    `solved | invalid | unsolvable` sin colgarse. `countSolutions(values, cap)`
+    `solved | invalid | unsolvable` sin colgarse. `countSolutions(board, cap)`
     con corte (cap = 2 para "hay solucion unica?").
-- Tests: 46 pasando con `node --test` (`test/board.test.js`,
+- **Firma comun:** `solve` y `countSolutions` aceptan `Board | number[]` y no
+  mutan la entrada (fix del 2026-09-26 sobre una inconsistencia de firma:
+  `countSolutions` solo tomaba `number[]`).
+- Tests: 47 pasando con `node --test` (`test/board.test.js`,
   `test/validator.test.js`, `test/solver.test.js`), cubriendo los casos borde
   pedidos: tablero invalido, sin solucion, vacio, ya resuelto y con mas de una
   solucion.

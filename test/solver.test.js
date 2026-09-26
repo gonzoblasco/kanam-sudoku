@@ -129,6 +129,15 @@ test("countSolutions: tablero invalido o sin solucion cuenta 0", () => {
   assert.equal(countSolutions(valuesOf(UNSOLVABLE), 2), 0);
 });
 
+test("countSolutions: acepta un Board igual que solve", () => {
+  // solve acepta Board | number[]; countSolutions debe usar la misma firma.
+  const board = parse(EASY);
+  assert.equal(countSolutions(board, 2), 1);
+  assert.equal(countSolutions(board, 2), countSolutions(board.values, 2));
+  // mismo resultado que solve para la misma entrada
+  assert.equal(solve(board).status, SOLVE_STATUS.SOLVED);
+});
+
 test("countSolutions: no muta la entrada", () => {
   const values = valuesOf(MULTI);
   const before = values.join("");
