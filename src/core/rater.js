@@ -119,6 +119,7 @@ function stepOf(deduction) {
     action: deduction.action,
     targets: deduction.targets,
     evidence: deduction.evidence,
+    text: deduction.text,
   };
 }
 

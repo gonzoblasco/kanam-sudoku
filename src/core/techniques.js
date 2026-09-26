@@ -1,4 +1,5 @@
-// U2 - Detectores de tecnicas tier 0, 1 y 2.
+// U2/U3 - Detectores de tecnicas tier 0, 1 y 2, y contrato de deduccion con
+// explicacion llana.
 //
 // CONTRATO DE DEDUCCION (API interna compartida; ver tambien `DEDUCTION.md`)
 // -------------------------------------------------------------------------
@@ -6,7 +7,7 @@
 //
 //   {
 //     technique: "hidden_single",  // id canonico en INGLES, estable
-//     tier: 0,                     // 0 facil, 1 medio, 2 dificil (escalera U2/U3)
+//     tier: 0,                     // 0 facil, 1 medio, 2 dificil, 3 experto
 //     er: 1.5,                     // rating de referencia (Sudoku Explainer)
 //     action: "place" | "eliminate",
 //     targets: [                   // lo unico que muta el tablero
@@ -21,8 +22,9 @@
 //       byDigit: [                 // casillas candidatas por digito
 //         { digit: 1, cells: [42, 43] },
 //       ] | null,
-//       // extra por familia: fish, wing
+//       // extra por familia: line (pointing), box (claiming), fish, wing
 //     },
+//     text: "En la fila 3, ..."    // explicacion llana (U3, desde evidence)
 //   }
 //
 // Reglas del contrato:
@@ -31,15 +33,15 @@
 //   resaltado no puede depender solo del color (NFR-4).
 // - El id `technique` va en ingles (la nomenclatura en español NO es canonica,
 //   research seccion 8.1). El nombre en español vive en `TECHNIQUE_LABELS`.
-// - `text` lo agrega U3 (explicacion llana); U2 lo deja ausente.
+// - `text` se construye desde `evidence` con `explain()`, no es una frase fija
+//   por tecnica: dice donde y que, no solo el nombre de la tecnica.
 // - Una deduccion solo vale si sus `targets` estan justificados por el estado
 //   del tablero; `verifyDeduction` lo comprueba antes de aplicarla.
 // - El tier lo fija la tabla de niveles del research 4.2, NO el ER (SPEC 7bis).
 //   El ER solo ordena la evaluacion dentro del catalogo.
-// - El tier lo fija la tabla de niveles del research 4.2, NO el ER (SPEC 7bis).
-//   El ER solo ordena la evaluacion dentro del catalogo.
 
 import { DIM, UNIT_TYPE, UNITS, PEERS, bit, popcount, maskDigits } from "./analysis.js";
+import { explain } from "./explain.js";
 
 /** Etiquetas de UI en español, no canonicas (solo para mostrar). */
 export const TECHNIQUE_LABELS = Object.freeze({
@@ -152,7 +154,9 @@ function eliminateOthersInCells(state, cells, mask) {
 }
 
 function makeDeduction(technique, tier, er, action, targets, evidence) {
-  return { technique, tier, er, action, targets, evidence };
+  // `text` se construye desde `evidence` (no es un string fijo por tecnica):
+  // nombra la unidad y los digitos reales para no depender solo del color.
+  return { technique, tier, er, action, targets, evidence, text: explain({ technique, evidence }) };
 }
 
 // Casillas candidatas de un digito en una linea (fila o columna).
@@ -271,6 +275,7 @@ defineTechnique("locked_candidates_pointing", 1, 2.6, "eliminate", (state) => {
       if (targets.length === 0) continue;
       return makeDeduction("locked_candidates_pointing", 1, 2.6, "eliminate", targets, {
         unit: unitRef(box),
+        line: unitRef(line),
         cells,
         digit: d,
         digits: null,
@@ -297,6 +302,7 @@ defineTechnique("locked_candidates_claiming", 1, 2.8, "eliminate", (state) => {
       if (targets.length === 0) continue;
       return makeDeduction("locked_candidates_claiming", 1, 2.8, "eliminate", targets, {
         unit: unitRef(line),
+        box: unitRef(box),
         cells,
         digit: d,
         digits: null,

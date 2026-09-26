@@ -133,6 +133,17 @@ test("generatePuzzle: un dificil no se resuelve con el rater de U2 (tier <= 1)",
   assert.equal(ratePuzzle(valuesOf(result.puzzle), { maxTier: 2 }).difficulty, DIFFICULTY.HARD);
 });
 
+test("generatePuzzle: los pasos de un dificil traen text llano", () => {
+  const result = generatePuzzle({ seed: 70001, difficulty: DIFFICULTY.HARD, maxAttempts: 40 });
+  assert.ok(result.steps.length > 0);
+  for (const step of result.steps) {
+    assert.equal(typeof step.text, "string");
+    assert.ok(step.text.length > 20, `${step.technique}: text vacio o muy corto`);
+  }
+  // y al menos un paso es de tier 2 (la razon de ser del nivel)
+  assert.ok(result.steps.some((step) => step.tier === 2));
+});
+
 test("generatePuzzle: los pasos reportados son reales", () => {
   const result = generatePuzzle({ seed: 4242, difficulty: DIFFICULTY.MEDIUM });
   const rating = ratePuzzle(valuesOf(result.puzzle), { maxTier: 1 });

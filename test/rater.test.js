@@ -113,6 +113,14 @@ test("isHard: verdadero hasta tier 2, falso para tier 3", () => {
   assert.equal(isHard(valuesOf(BEYOND)), false);
 });
 
+test("ratePuzzle: cada paso trae su text llano (U3)", () => {
+  const result = ratePuzzle(valuesOf(HARD), { maxTier: 2 });
+  for (const step of result.steps) {
+    assert.equal(typeof step.text, "string");
+    assert.ok(step.text.length > 20, `${step.technique}: text vacio o muy corto`);
+  }
+});
+
 test("los fixtures del rater son de solucion unica", () => {
   assert.equal(countSolutions(valuesOf(EASY), 2), 1);
   assert.equal(countSolutions(valuesOf(MEDIUM), 2), 1);

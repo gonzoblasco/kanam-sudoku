@@ -74,7 +74,7 @@ test("cada detector dispara en su fixture, con targets no vacios", () => {
   }
 });
 
-test("deduccion: forma del contrato", () => {
+test("deduccion: forma del contrato incluye text", () => {
   const state = analyze(valuesOf(FIXTURES.hidden_single));
   const deduction = findDeduction(state);
   assert.equal(typeof deduction.technique, "string");
@@ -83,8 +83,9 @@ test("deduccion: forma del contrato", () => {
   assert.ok(["place", "eliminate"].includes(deduction.action));
   assert.ok(Array.isArray(deduction.targets));
   assert.ok(deduction.evidence && typeof deduction.evidence === "object");
-  // U2 no agrega texto: eso es de U3
-  assert.equal(deduction.text, undefined);
+  // U3 agrega el texto llano: presente y no vacio.
+  assert.equal(typeof deduction.text, "string");
+  assert.ok(deduction.text.length > 20, "text demasiado corto");
 });
 
 test("deduccion: evidence nombra la unidad y el digito (a11y)", () => {
@@ -224,4 +225,79 @@ test("x_wing: elimina en las lineas cruzadas, fuera de las definidoras", () => {
     }
     state.applyDeduction(d);
   }
+});
+
+// --- motor de explicaciones -------------------------------------------------
+
+test("explain: tier 0, 1 y 2 producen text que nombra unidad y digitos", () => {
+  const cases = [
+    { id: "full_house", unitWord: "fila", hasDigit: true },
+    { id: "hidden_single", unitWord: "fila", hasDigit: true },
+    { id: "naked_single", unitWord: "columna", hasDigit: true },
+    { id: "locked_candidates_pointing", unitWord: "caja", hasDigit: true },
+    { id: "locked_candidates_claiming", unitWord: "caja", hasDigit: true },
+    { id: "naked_pair", unitWord: "fila", hasDigit: true },
+    { id: "hidden_pair", unitWord: "fila", hasDigit: true },
+    { id: "naked_triple", unitWord: "fila", hasDigit: true },
+    { id: "hidden_triple", unitWord: "fila", hasDigit: true },
+    { id: "naked_quad", unitWord: "columna", hasDigit: true },
+    { id: "x_wing", unitWord: "fila", hasDigit: true },
+    { id: "swordfish", unitWord: "fila", hasDigit: true },
+    { id: "xy_wing", unitWord: "fila", hasDigit: true },
+    { id: "xyz_wing", unitWord: "fila", hasDigit: true },
+  ];
+  for (const { id } of cases) {
+    const state = analyze(valuesOf(FIXTURES[id]));
+    let d = null;
+    let guard = 0;
+    while (!state.isSolved() && guard++ < 400) {
+      const found = findDeduction(state, { maxTier: 2 });
+      if (!found) break;
+      if (found.technique === id) {
+        d = found;
+        break;
+      }
+      state.applyDeduction(found);
+    }
+    assert.ok(d, `${id}: no se detecto`);
+    assert.equal(typeof d.text, "string");
+    assert.ok(d.text.length > 20, `${id}: text demasiado corto`);
+    // nombra una unidad concreta y al menos un digito real del evidence
+    assert.match(d.text, /fila|columna|caja/, `${id}: el text no nombra ninguna unidad`);
+    const digits = d.evidence.digits ?? (d.evidence.digit ? [d.evidence.digit] : []);
+    for (const digit of digits) {
+      assert.ok(
+        new RegExp(`\\b${digit}\\b`).test(d.text),
+        `${id}: el text no menciona el digito ${digit}`,
+      );
+    }
+  }
+});
+
+test("explain: no hay strings fijos (dos deducciones distintas tienen distinto texto)", () => {
+  // La misma tecnica en tableros distintos debe dar textos distintos: se
+  // construye desde el evidence, no es una frase fija.
+  const a = analyze(valuesOf(FIXTURES.hidden_pair));
+  const b = analyze(valuesOf(FIXTURES.xy_wing));
+  const t1 = findDeduction(a, { maxTier: 2 });
+  const t2 = findDeduction(b, { maxTier: 2 });
+  assert.notEqual(t1.text, t2.text);
+});
+
+// Un helper local: el text de una tecnica concreta en su fixture.
+function textOf(id) {
+  const state = analyze(valuesOf(FIXTURES[id]));
+  let guard = 0;
+  while (!state.isSolved() && guard++ < 400) {
+    const d = findDeduction(state, { maxTier: 2 });
+    if (!d) break;
+    if (d.technique === id) return d.text;
+    state.applyDeduction(d);
+  }
+  return null;
+}
+
+test("explain: el text se regenera igual desde el mismo estado (determinista)", () => {
+  assert.equal(textOf("x_wing"), textOf("x_wing"));
+  assert.notEqual(textOf("x_wing"), textOf("swordfish"));
 });

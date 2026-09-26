@@ -27,11 +27,13 @@ Implementacion: `src/core/techniques.js`. Primitivas: `src/core/analysis.js`.
     byDigit: [                        // casillas candidatas por digito, o null
       { digit: 1, cells: [42, 43] },
     ],
-    // Campos extra de algunas familias, o null:
+    // Campos extra que consumen algunos textos, o null:
+    line: { type: "row", index: 2 },  // pointing: la linea dentro de la caja
+    box: { type: "box", index: 3 },   // claiming: la caja dentro de la linea
     fish: { base: [...], cover: [...], digit: 6 }, // x_wing / swordfish
     wing: { pivot: {...}, pincers: [...], z: 3 },  // xy_wing / xyz_wing
   },
-  text: "...",                  // explicacion llana: la agrega U3
+  text: "En la fila 3, el 6 solo cabe en ...",  // explicacion llana (U3)
 }
 ```
 
@@ -49,8 +51,12 @@ Implementacion: `src/core/techniques.js`. Primitivas: `src/core/analysis.js`.
   comprueba que cada target sea legal en el estado actual (casilla vacia, digito
   candidato). El rater verifica antes de aplicar; un paso sin justificacion es un
   bug, no un redondeo.
-- **`text` lo agrega U3.** U2 deja el campo ausente. U3 lo completa sin cambiar la
-  forma.
+- **`text` es la explicacion llana**, en español, lista para mostrar. No es un
+  string fijo por tecnica: se **construye desde `evidence`** con `explain()`, asi
+  que nombra la unidad y los digitos reales de cada paso. Eso es un requisito de
+  accesibilidad (NFR-4): un lector de pantalla tiene que poder usar el hint sin
+  ver la grilla, y el resaltado de color no puede ser la unica fuente. U3 lo
+  adjunta en `makeDeduction`.
 
 ## Tier: la tabla de niveles manda, no el ER
 
