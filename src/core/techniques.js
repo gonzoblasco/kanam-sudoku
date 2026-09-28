@@ -59,6 +59,12 @@ export const TECHNIQUE_LABELS = Object.freeze({
   swordfish: "pez espada (Swordfish)",
   xy_wing: "ala XY (XY-Wing)",
   xyz_wing: "ala XYZ (XYZ-Wing)",
+  jellyfish: "medusa (Jellyfish)",
+  skyscraper: "rascacielos (Skyscraper)",
+  two_string_kite: "cometa de dos cuerdas (2-String Kite)",
+  unique_rectangle: "rectangulo unico (Unique Rectangle)",
+  w_wing: "ala W (W-Wing)",
+  simple_colors: "coloreo simple (Simple Colors)",
 });
 
 const ROWS = UNITS.filter((u) => u.type === UNIT_TYPE.ROW);
@@ -179,6 +185,37 @@ function commonPeers(cells) {
 // la propia casilla, asi que a === b da false.
 function sees(a, b) {
   return PEERS[a].includes(b);
+}
+
+// Pares conjugados (links fuertes) de un digito: unidades con exactamente dos
+// casillas candidatas. `type` filtra por tipo de unidad (fila/columna/caja).
+function strongLinks(state, digit, type) {
+  const links = [];
+  for (const unit of UNITS) {
+    if (type && unit.type !== type) continue;
+    const cells = cellsOfMask(state.unitDigitCells(unit, digit));
+    if (cells.length === 2) links.push({ unit, cells });
+  }
+  return links;
+}
+
+// Casillas bivaluadas: exactamente dos candidatos.
+function bivaluedCells(state) {
+  const out = [];
+  for (let cell = 0; cell < state.values.length; cell++) {
+    if (state.values[cell] === 0 && state.cellCount[cell] === 2) out.push(cell);
+  }
+  return out;
+}
+
+// Elimina `digit` de los peers comunes a dos casillas.
+function eliminateFromCommonPeers(state, a, b, digit) {
+  const targets = [];
+  for (const cell of commonPeers([a, b])) {
+    if (state.values[cell] !== 0) continue;
+    if (state.candidates[cell] & bit(digit)) targets.push({ cell, kind: "eliminate", digit });
+  }
+  return targets;
 }
 
 // Detector: devuelve una deduccion o null. Nunca muta el estado.
@@ -603,6 +640,330 @@ defineTechnique("xyz_wing", 2, 4.4, "eliminate", (state) => {
               z,
             },
           });
+        }
+      }
+    }
+  }
+  return null;
+});
+
+// ---------------------------------------------------------------------------
+// Tier 3 - Experto (research 3.11, 3.14, 3.15, 3.16, 3.18, 3.21).
+//
+// Etiquetas y solapamientos (research, incertidumbre 9): el motor reporta UNA
+// etiqueta por deteccion, segun el orden del catalogo (ascendente por ER).
+// - Skyscraper y 2-String Kite tienen formas distintas (links paralelos vs
+//   perpendiculares), asi que no se disparan sobre el mismo patron.
+// - Un Skyscraper no es un X-Wing: se exige que los extremos libres NO esten
+//   alineados. Si el rectangulo completo existe, gana X-Wing (tier 2, menor ER).
+// - La familia fish (X-Wing 2, Swordfish 3, Jellyfish 4) se prueba por tamano
+//   creciente: un Jellyfish solo se reporta si no hay un fish mas chico.
+// ER del research salvo W-Wing, que es estimado (ver STATUS).
+// ---------------------------------------------------------------------------
+
+// Jellyfish: fish de tamano 4 (research 3.11). ER 5.2.
+defineTechnique("jellyfish", 3, 5.2, "eliminate", (state) => {
+  const found = findFish(state, 4);
+  if (!found) return null;
+  return fishDeduction("jellyfish", 3, 5.2, { ...found, state });
+});
+
+// Skyscraper: dos links conjugados del mismo digito en lineas paralelas, con un
+// extremo de cada uno en una linea base comun. Elimina el digito de las casillas
+// que ven a los dos extremos libres (research 3.15). ER 4.0.
+defineTechnique("skyscraper", 3, 4.0, "eliminate", (state) => {
+  const orientations = [
+    { type: UNIT_TYPE.ROW, crossIndex: colIndex, crossUnits: COLS },
+    { type: UNIT_TYPE.COL, crossIndex: rowIndex, crossUnits: ROWS },
+  ];
+  for (let d = 1; d <= DIM; d++) {
+    for (const { type, crossIndex, crossUnits } of orientations) {
+      const links = strongLinks(state, d, type);
+      for (let i = 0; i < links.length; i++) {
+        for (let j = i + 1; j < links.length; j++) {
+          const a = links[i];
+          const b = links[j];
+          const aCross = a.cells.map(crossIndex);
+          const bCross = b.cells.map(crossIndex);
+          const baseIndex = aCross.find((x) => bCross.includes(x));
+          if (baseIndex === undefined) continue;
+          const tipA = a.cells.find((c) => crossIndex(c) !== baseIndex);
+          const tipB = b.cells.find((c) => crossIndex(c) !== baseIndex);
+          // Si los extremos libres comparten la linea cruzada, es un X-Wing.
+          if (crossIndex(tipA) === crossIndex(tipB)) continue;
+          const targets = eliminateFromCommonPeers(state, tipA, tipB, d);
+          if (targets.length === 0) continue;
+          const baseUnit = crossUnits[baseIndex];
+          const cells = [...new Set([...a.cells, ...b.cells])].sort((x, y) => x - y);
+          return makeDeduction("skyscraper", 3, 4.0, "eliminate", targets, {
+            unit: unitRef(baseUnit),
+            cells,
+            digit: d,
+            digits: null,
+            byDigit: [{ digit: d, cells: [tipA, tipB] }],
+            units: [unitRef(a.unit), unitRef(b.unit), unitRef(baseUnit)],
+            skyscraper: {
+              parallel: [unitRef(a.unit), unitRef(b.unit)],
+              base: unitRef(baseUnit),
+              tips: [tipA, tipB],
+              digit: d,
+            },
+          });
+        }
+      }
+    }
+  }
+  return null;
+});
+
+// 2-String Kite: un link conjugado en una fila y otro en una columna, del mismo
+// digito, con un extremo de cada uno en la misma caja (el codo). Elimina el
+// digito de las casillas que ven a los dos extremos libres (research 3.16).
+// ER 4.2 dentro de la banda 4.0-4.3 que da el research.
+defineTechnique("two_string_kite", 3, 4.2, "eliminate", (state) => {
+  for (let d = 1; d <= DIM; d++) {
+    const rowLinks = strongLinks(state, d, UNIT_TYPE.ROW);
+    const colLinks = strongLinks(state, d, UNIT_TYPE.COL);
+    for (const r of rowLinks) {
+      for (const c of colLinks) {
+        let hingeR = null;
+        let hingeC = null;
+        for (const rc of r.cells) {
+          for (const cc of c.cells) {
+            if (rc !== cc && boxIndex(rc) === boxIndex(cc)) {
+              hingeR = rc;
+              hingeC = cc;
+            }
+          }
+        }
+        if (hingeR === null) continue;
+        const tipR = r.cells.find((x) => x !== hingeR);
+        const tipC = c.cells.find((x) => x !== hingeC);
+        const targets = eliminateFromCommonPeers(state, tipR, tipC, d);
+        if (targets.length === 0) continue;
+        return makeDeduction("two_string_kite", 3, 4.2, "eliminate", targets, {
+          unit: null,
+          cells: [tipR, tipC, hingeR, hingeC],
+          digit: d,
+          digits: null,
+          byDigit: [{ digit: d, cells: [tipR, tipC] }],
+          units: [unitRef(r.unit), unitRef(c.unit)],
+          kite: {
+            row: unitRef(r.unit),
+            col: unitRef(c.unit),
+            hinge: [hingeR, hingeC],
+            tips: [tipR, tipC],
+            digit: d,
+          },
+        });
+      }
+    }
+  }
+  return null;
+});
+
+// Unique Rectangle (Type 1): cuatro casillas en dos cajas con candidatos {a,b};
+// si tres son exactamente {a,b} y la cuarta tiene un candidato extra, esa cuarta
+// no puede ser ni a ni b (romperia la unicidad) (research 3.21). ER 4.5.
+//
+// Depende de la suposicion de solucion unica: vale para todo puzzle de este
+// generador (NFR-3), pero no es una verdad universal del sudoku. El texto del
+// hint lo explica sin esconderlo.
+defineTechnique("unique_rectangle", 3, 4.5, "eliminate", (state) => {
+  const sameTower = [];
+  const diffTower = [];
+  for (let c1 = 0; c1 < DIM; c1++) {
+    for (let c2 = c1 + 1; c2 < DIM; c2++) {
+      (Math.floor(c1 / 3) === Math.floor(c2 / 3) ? sameTower : diffTower).push([c1, c2]);
+    }
+  }
+  const sameFloor = [];
+  const diffFloor = [];
+  for (let r1 = 0; r1 < DIM; r1++) {
+    for (let r2 = r1 + 1; r2 < DIM; r2++) {
+      (Math.floor(r1 / 3) === Math.floor(r2 / 3) ? sameFloor : diffFloor).push([r1, r2]);
+    }
+  }
+  const orientations = [
+    { rows: diffFloor, cols: sameTower },
+    { rows: sameFloor, cols: diffTower },
+  ];
+  for (const { rows, cols } of orientations) {
+    for (const [r1, r2] of rows) {
+      for (const [c1, c2] of cols) {
+        const cells = [r1 * DIM + c1, r1 * DIM + c2, r2 * DIM + c1, r2 * DIM + c2];
+        let shared = (1 << DIM) - 1;
+        let ok = true;
+        for (const cell of cells) {
+          if (state.values[cell] !== 0) {
+            ok = false;
+            break;
+          }
+          shared &= state.candidates[cell];
+        }
+        if (!ok || popcount(shared) !== 2) continue;
+        const exact = cells.filter((cell) => state.candidates[cell] === shared);
+        const extra = cells.filter((cell) => state.candidates[cell] !== shared);
+        if (exact.length !== 3 || extra.length !== 1) continue;
+        const fourth = extra[0];
+        const digits = maskDigits(shared);
+        const targets = digits.map((digit) => ({ cell: fourth, kind: "eliminate", digit }));
+        return makeDeduction("unique_rectangle", 3, 4.5, "eliminate", targets, {
+          unit: null,
+          cells,
+          digit: null,
+          digits,
+          byDigit: digits.map((digit) => ({ digit, cells })),
+          units: [],
+          rectangle: { cells, digits, extra: fourth },
+        });
+      }
+    }
+  }
+  return null;
+});
+
+// W-Wing: dos casillas bivaluadas identicas {w,x} conectadas por un link
+// conjugado en uno de esos digitos, que une una vecina de cada extremo. Elimina
+// el otro digito de las casillas que ven a las dos bivaluadas (research 3.14).
+// ER 5.5 ESTIMADO: el research no confirma el ER del W-Wing simple (SE lo agrupa
+// con WXYZ-Wing en 5.5-5.6). Ver STATUS y el reporte.
+defineTechnique("w_wing", 3, 5.5, "eliminate", (state) => {
+  const bivalued = bivaluedCells(state);
+  for (let i = 0; i < bivalued.length; i++) {
+    for (let j = i + 1; j < bivalued.length; j++) {
+      const cellA = bivalued[i];
+      const cellB = bivalued[j];
+      if (state.candidates[cellA] !== state.candidates[cellB]) continue;
+      const pairDigits = maskDigits(state.candidates[cellA]);
+      for (const linkDigit of pairDigits) {
+        const other = pairDigits.find((value) => value !== linkDigit);
+        const links = strongLinks(state, linkDigit);
+        for (const link of links) {
+          const [p, q] = link.cells;
+          if (p === cellA || p === cellB || q === cellA || q === cellB) continue;
+          const connects =
+            (sees(cellA, p) && sees(cellB, q)) || (sees(cellA, q) && sees(cellB, p));
+          if (!connects) continue;
+          const targets = eliminateFromCommonPeers(state, cellA, cellB, other);
+          if (targets.length === 0) continue;
+          return makeDeduction("w_wing", 3, 5.5, "eliminate", targets, {
+            unit: null,
+            cells: [cellA, cellB, p, q],
+            digit: other,
+            digits: null,
+            byDigit: [{ digit: other, cells: [cellA, cellB] }],
+            units: [unitRef(link.unit)],
+            wWing: {
+              pair: [cellA, cellB],
+              candidates: pairDigits,
+              linkCells: [p, q],
+              linkUnit: unitRef(link.unit),
+              linkDigit,
+              digit: other,
+            },
+          });
+        }
+      }
+    }
+  }
+  return null;
+});
+
+// Simple Colors (Color Trap y Color Wrap): colorea los candidatos de un digito
+// siguiendo los links conjugados; o todos los de un color son el digito, o todos
+// los del otro (research 3.18). ER 5.4.
+defineTechnique("simple_colors", 3, 5.4, "eliminate", (state) => {
+  for (let d = 1; d <= DIM; d++) {
+    const links = strongLinks(state, d);
+    if (links.length < 2) continue;
+    const adjacency = new Map();
+    const addEdge = (a, b) => {
+      if (!adjacency.has(a)) adjacency.set(a, []);
+      adjacency.get(a).push(b);
+    };
+    for (const link of links) {
+      addEdge(link.cells[0], link.cells[1]);
+      addEdge(link.cells[1], link.cells[0]);
+    }
+
+    const color = new Map();
+    const visited = new Set();
+    for (const start of adjacency.keys()) {
+      if (visited.has(start)) continue;
+      const component = [];
+      color.set(start, 0);
+      visited.add(start);
+      const queue = [start];
+      while (queue.length > 0) {
+        const cell = queue.shift();
+        component.push(cell);
+        for (const nb of adjacency.get(cell) ?? []) {
+          if (visited.has(nb)) continue;
+          visited.add(nb);
+          color.set(nb, 1 - color.get(cell));
+          queue.push(nb);
+        }
+      }
+      const buckets = [[], []];
+      for (const cell of component) buckets[color.get(cell)].push(cell);
+
+      // Color Wrap: dos casillas del mismo color caen en la misma unidad.
+      for (const which of [0, 1]) {
+        const group = buckets[which];
+        let contradiction = false;
+        for (let a = 0; a < group.length && !contradiction; a++) {
+          for (let b = a + 1; b < group.length; b++) {
+            if (sees(group[a], group[b])) {
+              contradiction = true;
+              break;
+            }
+          }
+        }
+        if (!contradiction) continue;
+        const targets = group.map((cell) => ({ cell, kind: "eliminate", digit: d }));
+        return makeDeduction("simple_colors", 3, 5.4, "eliminate", targets, {
+          unit: null,
+          cells: component.slice(),
+          digit: d,
+          digits: null,
+          byDigit: null,
+          units: [],
+          colors: {
+            type: "wrap",
+            digit: d,
+            cells: group.slice(),
+            other: buckets[1 - which].slice(),
+          },
+        });
+      }
+
+      // Color Trap: una casilla fuera del componente que ve a los dos colores.
+      for (const which of [0, 1]) {
+        const group = buckets[which];
+        const others = buckets[1 - which];
+        for (let cell = 0; cell < state.values.length; cell++) {
+          if (state.values[cell] !== 0) continue;
+          if (!(state.candidates[cell] & bit(d))) continue;
+          if (color.has(cell)) continue;
+          if (!group.some((c) => sees(cell, c))) continue;
+          if (!others.some((c) => sees(cell, c))) continue;
+          return makeDeduction(
+            "simple_colors",
+            3,
+            5.4,
+            "eliminate",
+            [{ cell, kind: "eliminate", digit: d }],
+            {
+              unit: null,
+              cells: [cell, ...buckets[0], ...buckets[1]],
+              digit: d,
+              digits: null,
+              byDigit: null,
+              units: [],
+              colors: { type: "trap", digit: d, cell, colors: [buckets[0].slice(), buckets[1].slice()] },
+            },
+          );
         }
       }
     }

@@ -227,6 +227,98 @@ const EXPLAINERS = {
       `casillas. Entonces las casillas que ven a las tres no pueden ser ${z}.`
     );
   },
+
+  // -------------------------------------------------------------------------
+  // Tier 3
+  // -------------------------------------------------------------------------
+  jellyfish(d) {
+    const { fish } = d.evidence;
+    const { base, cover, digit } = fish;
+    return (
+      `Mirando cuatro ${unitTypePlural(base[0].type)} a la vez (${unitNumbers(base)}), el ` +
+      `${digit} solo puede caer en cuatro ${unitTypePlural(cover[0].type)} ` +
+      `(${unitNumbers(cover)}). Como cada una de esas ${unitTypePlural(base[0].type)} ` +
+      `necesita su ${digit}, esas cuatro ${unitTypePlural(cover[0].type)} quedan ocupadas. ` +
+      `En las demas casillas de ${unitsWithArticle(cover)}, fuera de ${unitsWithArticle(base)}, ` +
+      `no puede haber ${digit}.`
+    );
+  },
+
+  skyscraper(d) {
+    const { skyscraper } = d.evidence;
+    const { parallel, base, tips, digit } = skyscraper;
+    return (
+      `El ${digit} solo tiene dos lugares en la ${unitLabel(parallel[0])} y dos en la ` +
+      `${unitLabel(parallel[1])}, y las dos parejas se tocan en la ${unitLabel(base)}. Como la ` +
+      `${unitLabel(base)} solo admite un ${digit}, al menos uno de los dos extremos que ` +
+      `sobresalen (${cellLabel(tips[0])} o ${cellLabel(tips[1])}) va a ser ${digit}. Entonces ` +
+      `cualquier casilla que vea a esos dos extremos no puede ser ${digit}.`
+    );
+  },
+
+  two_string_kite(d) {
+    const { kite } = d.evidence;
+    const { row, col, tips, hinge, digit } = kite;
+    return (
+      `En la ${unitLabel(row)} el ${digit} solo cabe en dos casillas, y en la ${unitLabel(col)} ` +
+      `tambien: son las unicas de cada linea. Las dos parejas se tocan dentro de una misma caja ` +
+      `(entre ${cellLabel(hinge[0])} y ${cellLabel(hinge[1])}). Eso obliga a que uno de los dos ` +
+      `extremos libres (${cellLabel(tips[0])} o ${cellLabel(tips[1])}) sea ${digit}. Por eso la ` +
+      `casilla que ve a los dos extremos no puede ser ${digit}.`
+    );
+  },
+
+  unique_rectangle(d) {
+    const { rectangle } = d.evidence;
+    const { cells, digits, extra } = rectangle;
+    const [a, b] = digits;
+    return (
+      `Estas cuatro casillas (${joinList(cells.map(cellLabel))}) admiten ${a} y ${b}, y tres de ` +
+      `ellas no admiten ningun otro numero. Ese rectangulo es un patron mortal: si se ` +
+      `completara alternando ${a} y ${b}, el tablero tendria dos soluciones distintas. Como ` +
+      `este puzzle tiene solucion unica (lo garantiza el generador), el patron no puede ` +
+      `completarse. Por eso la cuarta casilla (${cellLabel(extra)}), que es la unica que admite ` +
+      `un numero de mas, no puede ser ${a} ni ${b}.`
+    );
+  },
+
+  w_wing(d) {
+    const { wWing } = d.evidence;
+    const { pair, candidates, linkUnit, linkDigit, digit } = wWing;
+    return (
+      `Estas dos casillas (${cellLabel(pair[0])} y ${cellLabel(pair[1])}) tienen los mismos dos ` +
+      `candidatos, ${digitsText(candidates)}, y estan conectadas porque el ${linkDigit} solo ` +
+      `puede ir en dos lugares de la ${unitLabel(linkUnit)}, que tocan a cada una de las dos. ` +
+      `Pase lo que pase, una de las dos casillas va a ser ${linkDigit} y la otra ${digit}, asi ` +
+      `que una de ellas siempre es ${digit}. Por eso, la casilla que ve a las dos no puede ` +
+      `ser ${digit}.`
+    );
+  },
+
+  simple_colors(d) {
+    const { colors } = d.evidence;
+    const { digit } = colors;
+    if (colors.type === "wrap") {
+      const [a, b] = colors.cells;
+      return (
+        `Pinte todos los lugares posibles del ${digit} con dos colores, alternando por los ` +
+        `pares: o todos los de un color son ${digit}, o todos los del otro. Estas dos casillas ` +
+        `(${cellLabel(a)} y ${cellLabel(b)}) quedaron del mismo color y se ven entre si, asi ` +
+        `que ese color no puede ser el correcto. Entonces el ${digit} no puede ir en ninguna ` +
+        `de las casillas de ese color.`
+      );
+    }
+    const { cell, colors: groups } = colors;
+    const blue = groups[0][0];
+    const green = groups[1][0];
+    return (
+      `Pinte todos los lugares posibles del ${digit} con dos colores, alternando por los ` +
+      `pares: o todos los de un color son ${digit}, o todos los del otro. La casilla ` +
+      `${cellLabel(cell)} ve a la vez una de un color (${cellLabel(blue)}) y una del otro ` +
+      `(${cellLabel(green)}). Sea cual sea el color correcto, esa casilla queda al lado de ` +
+      `un ${digit}, asi que no puede ser ${digit}.`
+    );
+  },
 };
 
 /**

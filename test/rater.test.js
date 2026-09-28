@@ -59,12 +59,20 @@ test("ratePuzzle: la escalera reconoce los 4 niveles de la spec", () => {
   assert.equal(Object.values(DIFFICULTY).length, 4);
 });
 
-test("ratePuzzle: un puzzle de tier 3 queda honestamente sin resolver", () => {
-  // U3a implementa hasta tier 2. BEYOND necesita tier 3: el rater no lo inventa.
-  const result = ratePuzzle(valuesOf(BEYOND), { maxTier: 3 });
-  assert.equal(result.solved, false);
-  assert.equal(result.difficulty, null);
-  assert.ok(result.maxTier <= 2, "no debe pasar de las tecnicas implementadas");
+test("ratePuzzle: BEYOND llega a tier 3 pero sigue sin resolverse (honesto)", () => {
+  // U3b implementa tecnicas de tier 3, asi que el rater ya prueba esa banda. Con
+  // maxTier 3 BEYOND usa tecnicas de tier 3 y sube a maxTier 3, pero el puzzle no
+  // se resuelve: necesita una tecnica mas alla de la escalera implementada
+  // (chains/ALS), no una que exista y este mal. El rater no inventa el nivel.
+  const reached = ratePuzzle(valuesOf(BEYOND), { maxTier: 3 });
+  assert.equal(reached.solved, false, "BEYOND sigue sin resolverse");
+  assert.equal(reached.difficulty, null);
+  assert.equal(reached.maxTier, 3, "llego a la banda de tier 3");
+
+  // Con tier 2 se queda en tier 1: la tecnica que le falta es de tier 3.
+  const limited = ratePuzzle(valuesOf(BEYOND), { maxTier: 2 });
+  assert.equal(limited.solved, false);
+  assert.ok(limited.maxTier <= 2);
 });
 
 test("ratePuzzle: los pasos son reales (el rater reconstruye un tablero valido)", () => {

@@ -33,18 +33,26 @@ const FIXTURES = {
   swordfish: "009840700050000008000030002200060005005000060980400300600300801000000000810007093",
   xy_wing: "000870019000009080000006200090050704000002000040098000430000006600080050008004093",
   xyz_wing: "003010009050000420100400080700008500002005064000034000010300000009600000000000042",
+  // tier 3 (generados con el generador, dificultad experto, y filtrados por el
+  // rater hasta que la tecnica aparece de verdad en la resolucion)
+  jellyfish: "400020300020000009003000700010500000500800004000470001050010002000200090870090400",
+  skyscraper: "080401000700500900050029800014650000800000300000000060000000040000180000901000002",
+  two_string_kite: "000000208012600000600000005006004700004060009500003001005090020920700500300000100",
+  unique_rectangle: "003900005040060000000004009020490036400700050600050008095000120100000004000000890",
+  w_wing: "000050020710800000065001090376000000000180400800706009908000050000900083000000000",
+  simple_colors: "320600007089020036000090000000000000001000070800750094050000002006300700000084000",
 };
 
 function valuesOf(text) {
   return text.split("").map(Number);
 }
 
-test("catalogo: ids en ingles, tiers 0-2, ordenado por ER", () => {
+test("catalogo: ids en ingles, tiers 0-3, ordenado por ER", () => {
   assert.ok(TECHNIQUES.length >= 14);
   let prevEr = -Infinity;
   for (const technique of TECHNIQUES) {
     assert.match(technique.id, /^[a-z_]+$/, `id no canonico: ${technique.id}`);
-    assert.ok([0, 1, 2].includes(technique.tier), `tier fuera de 0-2: ${technique.id}`);
+    assert.ok([0, 1, 2, 3].includes(technique.tier), `tier fuera de 0-3: ${technique.id}`);
     assert.ok(technique.er >= prevEr, `orden de ER roto en ${technique.id}`);
     prevEr = technique.er;
   }
@@ -62,7 +70,8 @@ test("cada detector dispara en su fixture, con targets no vacios", () => {
     let applied = 0;
     let guard = 0;
     while (!state.isSolved() && guard++ < 400) {
-      const deduction = findDeduction(state, { maxTier: 2 });
+      // maxTier 3 cubre todo el catalogo actual (tier 0 a 3).
+      const deduction = findDeduction(state, { maxTier: 3 });
       if (!deduction) break;
       const check = verifyDeduction(state, deduction);
       assert.ok(check.ok, `${id}: paso sin justificacion (${deduction.technique}): ${check.reason}`);
@@ -229,29 +238,35 @@ test("x_wing: elimina en las lineas cruzadas, fuera de las definidoras", () => {
 
 // --- motor de explicaciones -------------------------------------------------
 
-test("explain: tier 0, 1 y 2 producen text que nombra unidad y digitos", () => {
+test("explain: tier 0, 1, 2 y 3 producen text que nombra unidad y digitos", () => {
   const cases = [
-    { id: "full_house", unitWord: "fila", hasDigit: true },
-    { id: "hidden_single", unitWord: "fila", hasDigit: true },
-    { id: "naked_single", unitWord: "columna", hasDigit: true },
-    { id: "locked_candidates_pointing", unitWord: "caja", hasDigit: true },
-    { id: "locked_candidates_claiming", unitWord: "caja", hasDigit: true },
-    { id: "naked_pair", unitWord: "fila", hasDigit: true },
-    { id: "hidden_pair", unitWord: "fila", hasDigit: true },
-    { id: "naked_triple", unitWord: "fila", hasDigit: true },
-    { id: "hidden_triple", unitWord: "fila", hasDigit: true },
-    { id: "naked_quad", unitWord: "columna", hasDigit: true },
-    { id: "x_wing", unitWord: "fila", hasDigit: true },
-    { id: "swordfish", unitWord: "fila", hasDigit: true },
-    { id: "xy_wing", unitWord: "fila", hasDigit: true },
-    { id: "xyz_wing", unitWord: "fila", hasDigit: true },
+    "full_house",
+    "hidden_single",
+    "naked_single",
+    "locked_candidates_pointing",
+    "locked_candidates_claiming",
+    "naked_pair",
+    "hidden_pair",
+    "naked_triple",
+    "hidden_triple",
+    "naked_quad",
+    "x_wing",
+    "swordfish",
+    "xy_wing",
+    "xyz_wing",
+    "jellyfish",
+    "skyscraper",
+    "two_string_kite",
+    "unique_rectangle",
+    "w_wing",
+    "simple_colors",
   ];
-  for (const { id } of cases) {
+  for (const id of cases) {
     const state = analyze(valuesOf(FIXTURES[id]));
     let d = null;
     let guard = 0;
     while (!state.isSolved() && guard++ < 400) {
-      const found = findDeduction(state, { maxTier: 2 });
+      const found = findDeduction(state, { maxTier: 3 });
       if (!found) break;
       if (found.technique === id) {
         d = found;
@@ -262,7 +277,7 @@ test("explain: tier 0, 1 y 2 producen text que nombra unidad y digitos", () => {
     assert.ok(d, `${id}: no se detecto`);
     assert.equal(typeof d.text, "string");
     assert.ok(d.text.length > 20, `${id}: text demasiado corto`);
-    // nombra una unidad concreta y al menos un digito real del evidence
+    // nombra una unidad o una casilla concreta y al menos un digito real
     assert.match(d.text, /fila|columna|caja/, `${id}: el text no nombra ninguna unidad`);
     const digits = d.evidence.digits ?? (d.evidence.digit ? [d.evidence.digit] : []);
     for (const digit of digits) {
@@ -282,6 +297,102 @@ test("explain: no hay strings fijos (dos deducciones distintas tienen distinto t
   const t1 = findDeduction(a, { maxTier: 2 });
   const t2 = findDeduction(b, { maxTier: 2 });
   assert.notEqual(t1.text, t2.text);
+});
+
+// --- tier 3 ----------------------------------------------------------------
+
+// Un test por tecnica nueva de tier 3: en su fixture la tecnica se detecta, la
+// deduccion es legal y el tier/accion son los esperados.
+test("tier 3: cada detector dispara en su fixture con deduccion legal", () => {
+  const tier3 = [
+    "jellyfish",
+    "skyscraper",
+    "two_string_kite",
+    "unique_rectangle",
+    "w_wing",
+    "simple_colors",
+  ];
+  for (const id of tier3) {
+    const state = analyze(valuesOf(FIXTURES[id]));
+    let found = null;
+    let guard = 0;
+    while (!state.isSolved() && guard++ < 400) {
+      const d = findDeduction(state, { maxTier: 3 });
+      if (!d) break;
+      assert.ok(verifyDeduction(state, d).ok, `${id}: paso sin justificacion (${d.technique})`);
+      if (d.technique === id) {
+        found = d;
+        break;
+      }
+      state.applyDeduction(d);
+    }
+    assert.ok(found, `${id}: no se detecto en su fixture`);
+    assert.equal(found.tier, 3, `${id}: tier distinto de 3`);
+    assert.ok(found.targets.length > 0, `${id}: sin targets`);
+    assert.equal(found.action, "eliminate", `${id}: deberia eliminar`);
+    assert.equal(typeof found.text, "string");
+  }
+});
+
+test("tier 3: ER y tier segun el research y la tabla de niveles", () => {
+  const byId = Object.fromEntries(TECHNIQUES.map((t) => [t.id, t]));
+  assert.equal(byId.skyscraper.er, 4.0); // research 3.15 (banda 4.0-4.3)
+  assert.equal(byId.two_string_kite.er, 4.2); // research 3.16 (banda 4.0-4.3)
+  assert.equal(byId.unique_rectangle.er, 4.5); // research 3.21 (4.5-5.3)
+  assert.equal(byId.jellyfish.er, 5.2); // research 3.11
+  assert.equal(byId.simple_colors.er, 5.4); // research 3.18 (3 strong links 5.4-5.7)
+  // W-Wing: ER estimado, el research no lo confirma (ver STATUS).
+  assert.equal(byId.w_wing.er, 5.5);
+  for (const id of [
+    "jellyfish",
+    "skyscraper",
+    "two_string_kite",
+    "unique_rectangle",
+    "w_wing",
+    "simple_colors",
+  ]) {
+    assert.equal(byId[id].tier, 3, `${id}: tier distinto de 3`);
+  }
+});
+
+test("solapamiento: un Skyscraper no se reporta como X-Wing", () => {
+  // Si los extremos libres comparten la linea cruzada, el patron es un X-Wing
+  // (tier 2, menor ER) y gana esa etiqueta. El Skyscraper solo aparece cuando
+  // los extremos libres NO estan alineados.
+  const state = analyze(valuesOf(FIXTURES.skyscraper));
+  let guard = 0;
+  let sawSkyscraper = false;
+  while (!state.isSolved() && guard++ < 400) {
+    const d = findDeduction(state, { maxTier: 3 });
+    if (!d) break;
+    if (d.technique === "skyscraper") {
+      sawSkyscraper = true;
+      const [tipA, tipB] = d.evidence.skyscraper.tips;
+      const baseType = d.evidence.skyscraper.base.type;
+      const crossIndex = (cell) => (baseType === "row" ? cell % 9 : Math.floor(cell / 9));
+      assert.notEqual(
+        crossIndex(tipA),
+        crossIndex(tipB),
+        "los extremos libres no deben estar alineados (si lo estan, es un X-Wing)",
+      );
+    }
+    state.applyDeduction(d);
+  }
+  assert.ok(sawSkyscraper, "el fixture deberia usar un Skyscraper");
+});
+
+test("unique_rectangle: el text declara la dependencia de solucion unica", () => {
+  const state = analyze(valuesOf(FIXTURES.unique_rectangle));
+  let guard = 0;
+  while (!state.isSolved() && guard++ < 400) {
+    const d = findDeduction(state, { maxTier: 3 });
+    if (!d) break;
+    if (d.technique === "unique_rectangle") {
+      assert.match(d.text, /solucion unica/i, "debe explicar la suposicion");
+      break;
+    }
+    state.applyDeduction(d);
+  }
 });
 
 // Un helper local: el text de una tecnica concreta en su fixture.

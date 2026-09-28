@@ -69,6 +69,11 @@ export function hintHighlight(deduction) {
   addUnit(evidence.unit);
   addUnit(evidence.line);
   addUnit(evidence.box);
+  // Las tecnicas de tier 2/3 traen una lista de unidades (fish base/cover,
+  // skyscraper, kite, W-Wing): se suman todas.
+  if (Array.isArray(evidence.units)) {
+    for (const unit of evidence.units) addUnit(unit);
+  }
   if (evidence.fish) {
     for (const unit of evidence.fish.base ?? []) addUnit(unit);
     for (const unit of evidence.fish.cover ?? []) addUnit(unit);
