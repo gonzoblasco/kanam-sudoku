@@ -9,6 +9,31 @@ rater base), U3a (tier 2 + motor de explicaciones), U4 (UI jugable), U5+U6
 (notas, undo/redo, timer, estadisticas, persistencia y dificultad) y U7+U8 (hints
 en UI + PWA offline con deploy preparado) entregadas y testeadas.
 
+**Revivido y verificado el 2026-10-20.** El proyecto estaba archivado como
+"proyecto de prueba" y fuera de `projects/`. Gonzo pidio un juego de sudoku
+local con 3 niveles de dificultad seleccionables; en vez de escribir uno nuevo se
+recupero este repo, que ya cumple el pedido. Verificacion medida (no heredada del
+STATUS de 2026-09-26):
+
+- `npm test`: **257 tests, 0 fallos** (motor puro, `node --test`).
+- `npm run build`: OK (24 modulos, `dist/` generado).
+- **e2e con Chromium real** (`test/e2e.smoke.mjs`): **18/18 checks**. Cubre el
+  camino completo de un jugador: la app carga y dibuja 81 celdas, el selector
+  ofrece 3 niveles, la pista devuelve texto que **explica la tecnica** y
+  resalta la evidencia, el teclado escribe, deshacer revierte, la partida se
+  guarda en `localStorage`, el solver resuelve el puzzle guardado, la app
+  **detecta la victoria**, las estadisticas registran la ganada con su mejor
+  tiempo, y al recargar se recupera la partida. Cero errores de consola.
+- **Dificultad real, verificada**: 5/5 puzzles por nivel con el tier medido
+  igual al pedido, y 5/5 con **solucion unica** comprobada con
+  `countSolutions(puzzle, 2) === 1`. Facil ~41 dadas, medio ~25, dificil ~25.
+  El vacio de celdas NO es lo que define el nivel: lo define la tecnica que
+  hace falta (tier 0 / 1 / 2).
+- **a11y**: `axe-core` sobre la app viva: **0 violaciones** (ningun impacto).
+  Contraste de los 9 pares de color de la hoja de estilos: todos AA (minimo
+  5.29:1 en el texto de conflicto). Los estados no dependen solo del color: hay
+  `data-state`, `aria-selected`, `aria-invalid` y `data-hint`.
+
 ## Que funciona
 
 - **U1 - Modelo de tablero + solver + validador** (`src/core/`):

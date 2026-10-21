@@ -21,6 +21,22 @@ npm test         # tests del motor
 npm run build    # build de produccion
 ```
 
+## Test end-to-end (navegador real)
+
+`npm test` corre el motor puro con `node --test` y no necesita navegador. El
+smoke test e2e si: levanta `dist/` y juega una partida entera en Chromium
+(teclado, pista, deshacer, victoria, estadisticas y recuperacion al recargar).
+
+```bash
+npm run build
+PLAYWRIGHT_PATH=/ruta/a/playwright-core \
+CHROMIUM_PATH=/ruta/a/chrome-headless-shell \
+node test/e2e.smoke.mjs
+```
+
+`PLAYWRIGHT_PATH` y `CHROMIUM_PATH` son opcionales: si no se pasan, se usan los
+valores por defecto de la maquina. El test sale con codigo 1 si un check falla.
+
 ## Estructura
 
 ```
